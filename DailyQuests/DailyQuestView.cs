@@ -13,6 +13,8 @@ namespace DailyQuests
 {
     public class DailyQuestView : View
     {
+        public static DailyQuestView Instance { get; private set; } = null!;
+
         private RectTransform root = null!;
         private RectTransform header = null!;
         private RectTransform listParent = null!;
@@ -33,7 +35,10 @@ namespace DailyQuests
         private Button btnAbandon = null!;
         private Button btnSubmit = null!;
         private Button btnFinish = null!;
-        private readonly List<GameObject> entryObjects = new List<GameObject>();
+        
+        private readonly List<GameObject> activeEntries = new List<GameObject>();
+        private readonly Stack<GameObject> entryPool = new Stack<GameObject>();
+        
         private readonly List<int> entryIds = new List<int>();
         private readonly List<TextMeshProUGUI> nameLabels = new List<TextMeshProUGUI>();
         private readonly List<Image> rowBackgrounds = new List<Image>();
@@ -61,9 +66,21 @@ namespace DailyQuests
 
         protected override void Awake()
         {
+            if (Instance != null && Instance != this)
+            {
+                Destroy(gameObject);
+                return;
+            }
+            Instance = this;
             base.Awake();
             BuildUI();
             gameObject.SetActive(false);
+        }
+
+        protected override void OnDestroy()
+        {
+            if (Instance == this) Instance = null!;
+            base.OnDestroy();
         }
 
         protected override void OnOpen()
@@ -290,11 +307,12 @@ namespace DailyQuests
 
         private void ClearEntries()
         {
-            foreach (var e in entryObjects)
+            foreach (var e in activeEntries)
             {
-                if (e != null) Object.Destroy(e);
+                e.SetActive(false);
+                entryPool.Push(e);
             }
-            entryObjects.Clear();
+            activeEntries.Clear();
             entryIds.Clear();
             nameLabels.Clear();
             rowBackgrounds.Clear();
@@ -321,26 +339,55 @@ namespace DailyQuests
 
         private void CreateEntry(DailyTask task)
         {
-            var entryGo = new GameObject($"Entry_{task.id}");
-            entryGo.transform.SetParent(listParent, false);
-            var rt = entryGo.AddComponent<RectTransform>();
-            rt.sizeDelta = new Vector2(0, 84);
-            var hbg = entryGo.AddComponent<Image>();
-            hbg.color = rowUnselectedColor;
-            var h = entryGo.AddComponent<HorizontalLayoutGroup>();
-            h.childControlHeight = true;
-            h.childForceExpandHeight = false;
-            h.childForceExpandWidth = true;
-            h.spacing = 8f;
-            h.padding = new RectOffset(8, 8, 8, 8);
-            h.childAlignment = TextAnchor.MiddleLeft;
-            entryGo.AddComponent<RectMask2D>();
-            var entryLE = entryGo.AddComponent<LayoutElement>();
-            entryLE.minHeight = 68f;
-            entryLE.preferredHeight = 84f;
+            GameObject entryGo;
+            TextMeshProUGUI nameText;
+            Image hbg;
+            RowClickRelay click;
 
-            var nameText = Object.Instantiate(GameplayDataSettings.UIStyle.TemplateTextUGUI);
-            nameText.transform.SetParent(entryGo.transform, false);
+            if (entryPool.Count > 0)
+            {
+                entryGo = entryPool.Pop();
+                entryGo.SetActive(true);
+                entryGo.name = $"Entry_{task.id}";
+                
+                nameText = entryGo.GetComponentInChildren<TextMeshProUGUI>();
+                hbg = entryGo.GetComponent<Image>();
+                click = entryGo.GetComponent<RowClickRelay>();
+            }
+            else
+            {
+                entryGo = new GameObject($"Entry_{task.id}");
+                entryGo.transform.SetParent(listParent, false);
+                var rt = entryGo.AddComponent<RectTransform>();
+                rt.sizeDelta = new Vector2(0, 84);
+                hbg = entryGo.AddComponent<Image>();
+                hbg.color = rowUnselectedColor;
+                var h = entryGo.AddComponent<HorizontalLayoutGroup>();
+                h.childControlHeight = true;
+                h.childForceExpandHeight = false;
+                h.childForceExpandWidth = true;
+                h.spacing = 8f;
+                h.padding = new RectOffset(8, 8, 8, 8);
+                h.childAlignment = TextAnchor.MiddleLeft;
+                entryGo.AddComponent<RectMask2D>();
+                var entryLE = entryGo.AddComponent<LayoutElement>();
+                entryLE.minHeight = 68f;
+                entryLE.preferredHeight = 84f;
+
+                nameText = Object.Instantiate(GameplayDataSettings.UIStyle.TemplateTextUGUI);
+                nameText.transform.SetParent(entryGo.transform, false);
+                nameText.alignment = TextAlignmentOptions.MidlineLeft;
+                nameText.enableWordWrapping = true;
+                nameText.fontSize = 20f;
+                var nameLE = nameText.gameObject.AddComponent<LayoutElement>();
+                nameLE.minWidth = 360f;
+                nameLE.flexibleWidth = 1f;
+
+                click = entryGo.AddComponent<RowClickRelay>();
+                click.view = this;
+            }
+
+            // Update content
             string diffLabel = task.difficulty == DailyTaskDifficulty.Easy ? "简单" : (task.difficulty == DailyTaskDifficulty.Normal ? "普通" : (task.difficulty == DailyTaskDifficulty.Hard ? "困难" : "史诗"));
             bool accepted = DailyQuestManager.Instance.IsAccepted(task.id);
             bool finished = DailyQuestManager.Instance.IsFinished(task.id);
@@ -356,24 +403,20 @@ namespace DailyQuests
             {
                 nameText.text = $"{task.title} [难度 {diffLabel}]";
             }
-            nameText.alignment = TextAlignmentOptions.MidlineLeft;
-            nameText.enableWordWrapping = true;
-            nameText.fontSize = 20f;
-            var nameLE = nameText.gameObject.AddComponent<LayoutElement>();
-            nameLE.minWidth = 360f;
-            nameLE.flexibleWidth = 1f;
 
-            var click = entryGo.AddComponent<RowClickRelay>();
-            click.view = this;
-            click.index = entryObjects.Count;
-            click.taskId = task.id;
-
+            // Update layout if needed (preferred height)
             float baseH = 68f;
             float computedH = nameText.preferredHeight + 16f;
             int rowH = (int)Mathf.Max(baseH, computedH);
-            rt.sizeDelta = new Vector2(0, rowH);
-            entryLE.preferredHeight = rowH;
-            entryObjects.Add(entryGo);
+            var entryLE_ = entryGo.GetComponent<LayoutElement>();
+            if (entryLE_) entryLE_.preferredHeight = rowH;
+            var rt_ = entryGo.GetComponent<RectTransform>();
+            if (rt_) rt_.sizeDelta = new Vector2(0, rowH);
+
+            click.index = activeEntries.Count;
+            click.taskId = task.id;
+
+            activeEntries.Add(entryGo);
             entryIds.Add(task.id);
             nameLabels.Add(nameText);
             rowBackgrounds.Add(hbg);
@@ -396,32 +439,6 @@ namespace DailyQuests
         {
             if (selectedIndex < 0 || selectedIndex >= entryIds.Count) return;
             ShowDetail(entryIds[selectedIndex]);
-        }
-
-        private void ExecuteOperation(int taskId)
-        {
-            var tasks = DailyQuestManager.Instance.GetDailyTasks();
-            var task = tasks.Find(t => t.id == taskId);
-            if (task == null) return;
-            bool accepted = DailyQuestManager.Instance.IsAccepted(task.id);
-            bool finished = DailyQuestManager.Instance.IsFinished(task.id);
-            if (!accepted)
-            {
-                DailyQuestManager.Instance.Accept(task.id);
-            }
-            else if (finished)
-            {
-            }
-            else if (task.type == DailyTaskType.SubmitItem)
-            {
-                DailyQuestManager.Instance.SubmitItemsForTask(task.id);
-            }
-            else
-            {
-                DailyQuestManager.Instance.Abandon(task.id);
-            }
-            RefreshList();
-            ShowDetail(task.id);
         }
 
         private void OnRefreshClicked()

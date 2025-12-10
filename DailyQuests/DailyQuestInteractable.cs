@@ -15,6 +15,11 @@ namespace DailyQuests
 
         protected override void OnInteractStart(CharacterMainControl interactCharacter)
         {
+            if (DailyQuestView.Instance != null)
+            {
+                view = DailyQuestView.Instance;
+            }
+
             if (view == null)
             {
                 var go = new GameObject("DailyQuestView");

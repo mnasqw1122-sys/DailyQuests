@@ -79,6 +79,12 @@ namespace DailyQuests
 
         private void OpenView()
         {
+            if (DailyQuestView.Instance != null)
+            {
+                DailyQuestView.Instance.Open();
+                return;
+            }
+
             var parent = GameplayUIManager.Instance ? GameplayUIManager.Instance.transform : this.transform;
             var go = new GameObject("DailyQuestView");
             go.transform.SetParent(parent, false);
