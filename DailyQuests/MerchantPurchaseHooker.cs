@@ -13,6 +13,8 @@ namespace DailyQuests
     public class MerchantPurchaseHooker : MonoBehaviour
     {
         private const string TargetMerchantName = "神秘商人";
+        private const string TargetMerchantKey1 = "MerchantName_Merchant_Myst";
+        private const string TargetMerchantKey2 = "Character_Myst";
 
         private void OnEnable()
         {
@@ -27,7 +29,16 @@ namespace DailyQuests
         private void OnItemPurchased(StockShop shop, Item item)
         {
             if (shop == null || item == null) return;
-            if (!string.Equals(shop.DisplayName, TargetMerchantName, StringComparison.Ordinal)) return;
+            
+            bool isTarget = false;
+            if (string.Equals(shop.DisplayName, TargetMerchantName, StringComparison.Ordinal)) isTarget = true;
+            else if (!string.IsNullOrEmpty(shop.DisplayNameKey))
+            {
+                if (shop.DisplayNameKey == TargetMerchantKey1 || shop.DisplayNameKey == TargetMerchantKey2) isTarget = true;
+            }
+            
+            if (!isTarget) return;
+
             int price = shop.ConvertPrice(item, false);
             DailyQuestManager.Instance.OnMerchantPurchase(price);
         }

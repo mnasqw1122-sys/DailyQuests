@@ -72,7 +72,14 @@ namespace DailyQuests
                 return;
             }
             Instance = this;
-            base.Awake();
+            try
+            {
+                base.Awake();
+            }
+            catch
+            {
+                // Ignore hierarchy errors from View.Awake (e.g. ViewTabs lookup)
+            }
             BuildUI();
             gameObject.SetActive(false);
         }

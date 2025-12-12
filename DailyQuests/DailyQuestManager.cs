@@ -72,10 +72,39 @@ namespace DailyQuests
 
         public void Initialize()
         {
+            VerifyConfig();
             currentDateKey = DateTime.UtcNow.ToString("yyyy-MM-dd");
             Load();
             BackfillRewardsForAllTasks();
             CheckDayChange();
+        }
+
+        private void VerifyConfig()
+        {
+            ValidateAndCleanup(DailyQuestConfig.AllowedUseItemIds, "AllowedUseItemIds");
+            ValidateAndCleanup(DailyQuestConfig.AllowedSubmitItemIds, "AllowedSubmitItemIds");
+            ValidateAndCleanup(DailyQuestConfig.AllowedRewardItemIds, "AllowedRewardItemIds");
+            ValidateAndCleanup(DailyQuestConfig.AllowedAmmoIds, "AllowedAmmoIds");
+            ValidateAndCleanup(DailyQuestConfig.HighValueRewardItemIds, "HighValueRewardItemIds");
+            ValidateAndCleanup(DailyQuestConfig.HighValueAmmoIds, "HighValueAmmoIds");
+        }
+
+        private void ValidateAndCleanup(HashSet<int> list, string listName)
+        {
+            var toRemove = new List<int>();
+            foreach (var id in list)
+            {
+                var meta = ItemAssetsCollection.GetMetaData(id);
+                if (id != 0 && meta.id == 0)
+                {
+                    Debug.LogWarning($"[DailyQuests] Config Warning: Item ID {id} in {listName} is invalid or missing. Removing from list.");
+                    toRemove.Add(id);
+                }
+            }
+            foreach (var id in toRemove)
+            {
+                list.Remove(id);
+            }
         }
 
         private void Update()
@@ -1141,9 +1170,12 @@ namespace DailyQuests
             {
                 int cashId = GameplayDataSettings.ItemAssets.CashItemTypeID;
                 var cash = ItemAssetsCollection.InstantiateSync(cashId);
-                cash.StackCount = t.rewardCashAmount;
-                ItemUtilities.SendToPlayer(cash, false, true);
-                NotificationText.Push($"奖励 现金 {t.rewardCashAmount}");
+                if (cash != null)
+                {
+                    cash.StackCount = t.rewardCashAmount;
+                    ItemUtilities.SendToPlayer(cash, false, true);
+                    NotificationText.Push($"奖励 现金 {t.rewardCashAmount}");
+                }
             }
             if (t.rewardExpAmount > 0)
             {
@@ -1163,7 +1195,14 @@ namespace DailyQuests
             {
                 int typeId = safeList[i].typeId;
                 int count = Mathf.Max(1, safeList[i].count);
+                
+                // Verify item exists before instantiating
+                var meta = ItemAssetsCollection.GetMetaData(typeId);
+                if (meta.id == 0) continue;
+
                 var first = ItemAssetsCollection.InstantiateSync(typeId);
+                if (first == null) continue;
+
                 if (first.Stackable)
                 {
                     first.StackCount = count;
@@ -1176,11 +1215,14 @@ namespace DailyQuests
                     for (int k = 1; k < count; k++)
                     {
                         var extra = ItemAssetsCollection.InstantiateSync(typeId);
-                        extra.StackCount = 1;
-                        ItemUtilities.SendToPlayer(extra, false, true);
+                        if (extra != null)
+                        {
+                            extra.StackCount = 1;
+                            ItemUtilities.SendToPlayer(extra, false, true);
+                        }
                     }
                 }
-                NotificationText.Push($"奖励 物品 {ItemAssetsCollection.GetMetaData(typeId).DisplayName} x{count}");
+                NotificationText.Push($"奖励 物品 {meta.DisplayName} x{count}");
             }
         }
 
@@ -1197,13 +1239,30 @@ namespace DailyQuests
                 {
                     if (t.rewardItemTypeId > 0 && t.rewardItemCount > 0)
                     {
-                        t.rewardItems = new List<DailyTask.RewardItem> { new DailyTask.RewardItem { typeId = t.rewardItemTypeId, count = t.rewardItemCount } };
+                         // Validate legacy single item
+                         var meta = ItemAssetsCollection.GetMetaData(t.rewardItemTypeId);
+                         if (meta.id != 0)
+                         {
+                             t.rewardItems = new List<DailyTask.RewardItem> { new DailyTask.RewardItem { typeId = t.rewardItemTypeId, count = t.rewardItemCount } };
+                         }
+                         else
+                         {
+                             need = true; // Invalid item, re-roll
+                             t.rewardItemTypeId = 0;
+                         }
                     }
                     else
                     {
                         need = true;
                     }
                 }
+                else
+                {
+                    // Validate existing list
+                    t.rewardItems.RemoveAll(ri => ItemAssetsCollection.GetMetaData(ri.typeId).id == 0);
+                    if (t.rewardItems.Count == 0) need = true;
+                }
+
                 if (need)
                 {
                     AssignRewardPreview(t);
