@@ -29,12 +29,21 @@ namespace DailyQuests
         private void OnItemPurchased(StockShop shop, Item item)
         {
             if (shop == null || item == null) return;
+            // 安全检查：防止管理器未初始化导致报错
+            if (DailyQuestManager.Instance == null) return;
             
             bool isTarget = false;
-            if (string.Equals(shop.DisplayName, TargetMerchantName, StringComparison.Ordinal)) isTarget = true;
-            else if (!string.IsNullOrEmpty(shop.DisplayNameKey))
+            
+            // 优先检查 Key (更稳健，支持多语言)
+            if (!string.IsNullOrEmpty(shop.DisplayNameKey))
             {
                 if (shop.DisplayNameKey == TargetMerchantKey1 || shop.DisplayNameKey == TargetMerchantKey2) isTarget = true;
+            }
+            
+            // 后备检查 DisplayName (仅作兼容)
+            if (!isTarget && string.Equals(shop.DisplayName, TargetMerchantName, StringComparison.Ordinal)) 
+            {
+                isTarget = true;
             }
             
             if (!isTarget) return;
@@ -47,6 +56,12 @@ namespace DailyQuests
         {
             var active = TradingUIUtilities.ActiveMerchant as StockShop;
             if (active == null) return false;
+            
+            if (!string.IsNullOrEmpty(active.DisplayNameKey))
+            {
+                if (active.DisplayNameKey == TargetMerchantKey1 || active.DisplayNameKey == TargetMerchantKey2) return true;
+            }
+            
             return string.Equals(active.DisplayName, TargetMerchantName, StringComparison.Ordinal);
         }
 

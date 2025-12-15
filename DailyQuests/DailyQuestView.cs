@@ -556,14 +556,28 @@ namespace DailyQuests
 
         private string BuildRewardItemsText(DailyTask task)
         {
-            if (task.rewardItems == null || task.rewardItems.Count == 0) return "奖励物品：无";
-            var names = new List<string>();
-            for (int i = 0; i < task.rewardItems.Count; i++)
+            // Check for new reward list
+            if (task.rewardItems != null && task.rewardItems.Count > 0)
             {
-                var meta = ItemAssetsCollection.GetMetaData(task.rewardItems[i].typeId);
-                names.Add($"{meta.DisplayName} x{task.rewardItems[i].count}");
+                var names = new List<string>();
+                for (int i = 0; i < task.rewardItems.Count; i++)
+                {
+                    var meta = ItemAssetsCollection.GetMetaData(task.rewardItems[i].typeId);
+                    names.Add($"{meta.DisplayName} x{task.rewardItems[i].count}");
+                }
+                return "奖励物品：" + string.Join("，", names);
             }
-            return "奖励物品：" + string.Join("，", names);
+            
+            // Fallback for legacy data
+            #pragma warning disable 612, 618
+            if (task.rewardItemTypeId > 0 && task.rewardItemCount > 0)
+            {
+                var meta = ItemAssetsCollection.GetMetaData(task.rewardItemTypeId);
+                return $"奖励物品：{meta.DisplayName} x{task.rewardItemCount}";
+            }
+            #pragma warning restore 612, 618
+
+            return "奖励物品：无";
         }
     }
 }

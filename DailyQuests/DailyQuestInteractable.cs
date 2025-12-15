@@ -31,6 +31,7 @@ namespace DailyQuests
         {
             try
             {
+                // Prefer Singleton instance
                 if (DailyQuestView.Instance != null)
                 {
                     view = DailyQuestView.Instance;
@@ -38,12 +39,38 @@ namespace DailyQuests
 
                 if (view == null)
                 {
+                    // Create new if missing
                     var go = new GameObject("DailyQuestView");
-                    var parent = GameplayUIManager.Instance ? GameplayUIManager.Instance.transform : this.transform;
+                    
+                    // Fix: Ensure parent is valid UI root, fallback to creating a temporary Canvas if needed
+                    Transform parent = null!;
+                    if (GameplayUIManager.Instance != null)
+                    {
+                        parent = GameplayUIManager.Instance.transform;
+                    }
+                    else
+                    {
+                        // Fallback: Try find any Canvas
+                        var canvas = FindObjectOfType<Canvas>();
+                        if (canvas != null) parent = canvas.transform;
+                        else
+                        {
+                            // Last resort: create a canvas
+                            var cGo = new GameObject("TempCanvas");
+                            var c = cGo.AddComponent<Canvas>();
+                            c.renderMode = RenderMode.ScreenSpaceOverlay;
+                            parent = cGo.transform;
+                        }
+                    }
+                    
                     go.transform.SetParent(parent, false);
                     view = go.AddComponent<DailyQuestView>();
                 }
+                
                 view.Open();
+                
+                // Fix: Must stop interact to release player control lock
+                StopInteract();
             }
             catch (System.Exception ex)
             {

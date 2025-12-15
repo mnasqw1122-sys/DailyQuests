@@ -54,9 +54,7 @@ namespace DailyQuests
             1134,1154,1090,50,49,48,836,21,52,60,61,110,131,51,58,59,128,130,53,54,55,109,380,833,834,56,57,402,8,337,340,11,112,113,336,338,339,746,64,114,298,329,62,63,65,301,328,100
         };
 
-        public static readonly HashSet<int> AllowedRewardItemIds = new HashSet<int>(AllowedUseItemIds); // Will be combined in constructor or static init if needed, but here we can just concat later or manual copy.
-        // To strictly match original logic:
-        // private static readonly HashSet<int> AllowedRewardItemIds = new HashSet<int>(AllowedUseItemIds.Concat(AllowedSubmitItemIds));
+        public static readonly HashSet<int> AllowedRewardItemIds = new HashSet<int>();
         
         public static readonly HashSet<int> AllowedAmmoIds = new HashSet<int>
         {
@@ -75,7 +73,11 @@ namespace DailyQuests
         
         static DailyQuestConfig()
         {
-             // Initialize combined sets
+             // 1. Auto-merge Boss names to ensure they are allowed
+             AllowedEnemyNames.UnionWith(BossEnemyNames);
+             
+             // 2. Initialize reward pool properly in constructor to avoid initialization order issues
+             AllowedRewardItemIds.UnionWith(AllowedUseItemIds);
              AllowedRewardItemIds.UnionWith(AllowedSubmitItemIds);
         }
     }

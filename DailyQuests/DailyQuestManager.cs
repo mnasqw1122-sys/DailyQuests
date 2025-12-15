@@ -174,14 +174,41 @@ namespace DailyQuests
 
         public void RefreshUnaccepted()
         {
+            // 1. Task Refresh Deadlock Fix: Allow abandoning expired tasks if list is full
             var keep = tasks.Where(t => t.accepted || (t.finished && !t.rewardClaimed)).ToList();
+            
+            // If player hoarded too many tasks (>= DailyCount), force abandon the oldest accepted but unfinished ones
+            // to make room for at least 3 new tasks.
+            if (keep.Count >= DailyCount)
+            {
+                int slotsNeeded = 3;
+                int slotsFreed = 0;
+                
+                // Sort by ID is a rough proxy for creation time if ID scheme is stable, 
+                // but since we don't have timestamps, we'll just remove non-finished accepted tasks.
+                for (int i = keep.Count - 1; i >= 0; i--)
+                {
+                    var t = keep[i];
+                    if (t.accepted && !t.finished)
+                    {
+                        keep.RemoveAt(i);
+                        slotsFreed++;
+                        if (keep.Count <= DailyCount - slotsNeeded) break;
+                    }
+                }
+            }
+
             if (keep.Count >= DailyCount)
             {
                 tasks = keep.Take(DailyCount).ToList();
                 Save();
                 return;
             }
-            var candidates = BuildPool();
+            
+            // 5. ID Collision Fix: Pass existing IDs to exclude them from new pool
+            var existingIds = new HashSet<int>(keep.Select(k => k.id));
+            var candidates = BuildPool(existingIds);
+            
             Shuffle(candidates);
             var newOnes = AssembleWithQuotas(candidates, keep);
             tasks = keep.Concat(newOnes).ToList();
@@ -368,28 +395,52 @@ namespace DailyQuests
         private void GenerateNewDaily()
         {
             var keep = tasks.Where(t => t.accepted || (t.finished && !t.rewardClaimed)).ToList();
-            var pool = BuildPool();
+            
+            // 1. Task Refresh Deadlock Fix (Duplicate logic for daily reset)
+            if (keep.Count >= DailyCount)
+            {
+                int slotsNeeded = 5; // More aggressive on daily reset
+                for (int i = keep.Count - 1; i >= 0; i--)
+                {
+                    var t = keep[i];
+                    if (t.accepted && !t.finished)
+                    {
+                        keep.RemoveAt(i);
+                        if (keep.Count <= DailyCount - slotsNeeded) break;
+                    }
+                }
+            }
+
+            // 5. ID Collision Fix
+            var existingIds = new HashSet<int>(keep.Select(k => k.id));
+            var pool = BuildPool(existingIds);
+            
             Shuffle(pool);
             var result = AssembleWithQuotas(pool, keep);
             tasks = keep.Concat(result).Take(DailyCount).ToList();
             lastSavedDate = currentDateKey;
         }
 
-        private List<DailyTask> BuildPool()
+        private List<DailyTask> BuildPool(HashSet<int> excludedIds = null)
         {
             var result = new List<DailyTask>();
+            if (excludedIds == null) excludedIds = new HashSet<int>();
             
             var sourceItemIds = GetSourceItemIds();
 
-            result.AddRange(BuildUseAndSubmitTasks(sourceItemIds));
-            result.AddRange(BuildKillEnemyTasks());
-            result.AddRange(BuildChallengeTasks());
-            result.AddRange(BuildSpendTasks());
+            result.AddRange(BuildUseAndSubmitTasks(sourceItemIds, excludedIds));
+            result.AddRange(BuildKillEnemyTasks(excludedIds));
+            result.AddRange(BuildChallengeTasks(excludedIds));
+            result.AddRange(BuildSpendTasks(excludedIds));
 
-            // Ensure at least one cash submit task if submit list is empty (though logic below combines them, so we check if result has submit tasks)
+            // Ensure at least one cash submit task if submit list is empty
             if (!result.Exists(t => t.type == DailyTaskType.SubmitItem))
             {
-                result.Add(CreateCashSubmitTask());
+                var cashTask = CreateCashSubmitTask();
+                if (!excludedIds.Contains(cashTask.id))
+                {
+                    result.Add(cashTask);
+                }
             }
 
             Shuffle(result);
@@ -412,7 +463,7 @@ namespace DailyQuests
             return sourceItemIds;
         }
 
-        private List<DailyTask> BuildUseAndSubmitTasks(List<int> sourceItemIds)
+        private List<DailyTask> BuildUseAndSubmitTasks(List<int> sourceItemIds, HashSet<int> excludedIds)
         {
             var tasks = new List<DailyTask>();
             for (int i = 0; i < sourceItemIds.Count; i++)
@@ -423,74 +474,88 @@ namespace DailyQuests
                 // Use Item Task
                 if (DailyQuestConfig.AllowedUseItemIds.Contains(itemId))
                 {
-                    int rollUse = UnityEngine.Random.Range(0, 100);
-                    DailyTaskDifficulty useDiff = (rollUse < 33) ? DailyTaskDifficulty.Easy : ((rollUse < 66) ? DailyTaskDifficulty.Normal : DailyTaskDifficulty.Hard);
-                    int useAmount = useDiff == DailyTaskDifficulty.Easy ? UnityEngine.Random.Range(3, 9) : (useDiff == DailyTaskDifficulty.Normal ? UnityEngine.Random.Range(9, 15) : UnityEngine.Random.Range(15, 21));
-                    
-                    var useTask = new DailyTask
+                    int id = 100000 + itemId;
+                    if (!excludedIds.Contains(id))
                     {
-                        id = 100000 + itemId,
-                        type = DailyTaskType.UseItem,
-                        targetItemId = itemId,
-                        requiredAmount = useAmount,
-                        difficulty = useDiff,
-                        title = $"使用 {meta.DisplayName}",
-                        description = $"在任意场景使用 {meta.DisplayName} {useAmount} 次"
-                    };
-                    AssignRewardPreview(useTask);
-                    AssignDifficulty(useTask); 
-                    AdjustTaskByDifficulty(useTask);
-                    tasks.Add(useTask);
+                        int rollUse = UnityEngine.Random.Range(0, 100);
+                        DailyTaskDifficulty useDiff = (rollUse < 33) ? DailyTaskDifficulty.Easy : ((rollUse < 66) ? DailyTaskDifficulty.Normal : DailyTaskDifficulty.Hard);
+                        int useAmount = useDiff == DailyTaskDifficulty.Easy ? UnityEngine.Random.Range(3, 9) : (useDiff == DailyTaskDifficulty.Normal ? UnityEngine.Random.Range(9, 15) : UnityEngine.Random.Range(15, 21));
+                        
+                        var useTask = new DailyTask
+                        {
+                            id = id,
+                            type = DailyTaskType.UseItem,
+                            targetItemId = itemId,
+                            requiredAmount = useAmount,
+                            difficulty = useDiff,
+                            title = $"使用 {meta.DisplayName}",
+                            description = $"在任意场景使用 {meta.DisplayName} {useAmount} 次"
+                        };
+                        AssignRewardPreview(useTask);
+                        AssignDifficulty(useTask); 
+                        AdjustTaskByDifficulty(useTask);
+                        tasks.Add(useTask);
+                    }
                 }
 
                 // Submit Item Task
                 if (DailyQuestConfig.AllowedSubmitItemIds.Contains(itemId))
                 {
-                    bool isAmmo = DailyQuestConfig.AllowedAmmoIds.Contains(itemId);
-                    DailyTaskDifficulty subDiff;
-                    int submitAmount = 0;
-                    int rollSubmit = UnityEngine.Random.Range(0, 100);
-                    
-                    if (isAmmo)
+                    int id = 200000 + itemId;
+                    if (!excludedIds.Contains(id))
                     {
-                        subDiff = rollSubmit < 40 ? DailyTaskDifficulty.Easy : (rollSubmit < 75 ? DailyTaskDifficulty.Normal : DailyTaskDifficulty.Hard);
-                        submitAmount = (subDiff == DailyTaskDifficulty.Easy) ? 60 : (subDiff == DailyTaskDifficulty.Normal ? 120 : 180);
+                        bool isAmmo = DailyQuestConfig.AllowedAmmoIds.Contains(itemId);
+                        DailyTaskDifficulty subDiff;
+                        int submitAmount = 0;
+                        int rollSubmit = UnityEngine.Random.Range(0, 100);
+                        
+                        if (isAmmo)
+                        {
+                            subDiff = rollSubmit < 40 ? DailyTaskDifficulty.Easy : (rollSubmit < 75 ? DailyTaskDifficulty.Normal : DailyTaskDifficulty.Hard);
+                            submitAmount = (subDiff == DailyTaskDifficulty.Easy) ? 60 : (subDiff == DailyTaskDifficulty.Normal ? 120 : 180);
+                        }
+                        else
+                        {
+                            subDiff = rollSubmit < 25 ? DailyTaskDifficulty.Easy : (rollSubmit < 55 ? DailyTaskDifficulty.Normal : (rollSubmit < 85 ? DailyTaskDifficulty.Hard : DailyTaskDifficulty.Epic));
+                            submitAmount = subDiff == DailyTaskDifficulty.Easy ? UnityEngine.Random.Range(2, 6) : (subDiff == DailyTaskDifficulty.Normal ? UnityEngine.Random.Range(6, 10) : (subDiff == DailyTaskDifficulty.Hard ? UnityEngine.Random.Range(10, 15) : UnityEngine.Random.Range(15, 26)));
+                        }
+                        
+                        var submitTask = new DailyTask
+                        {
+                            id = id,
+                            type = DailyTaskType.SubmitItem,
+                            targetItemId = itemId,
+                            requiredAmount = submitAmount,
+                            difficulty = subDiff,
+                            title = $"提交 {meta.DisplayName}",
+                            description = $"提交 {meta.DisplayName} x{submitAmount}"
+                        };
+                        AssignRewardPreview(submitTask);
+                        AssignDifficulty(submitTask);
+                        AdjustTaskByDifficulty(submitTask);
+                        tasks.Add(submitTask);
                     }
-                    else
-                    {
-                        subDiff = rollSubmit < 25 ? DailyTaskDifficulty.Easy : (rollSubmit < 55 ? DailyTaskDifficulty.Normal : (rollSubmit < 85 ? DailyTaskDifficulty.Hard : DailyTaskDifficulty.Epic));
-                        submitAmount = subDiff == DailyTaskDifficulty.Easy ? UnityEngine.Random.Range(2, 6) : (subDiff == DailyTaskDifficulty.Normal ? UnityEngine.Random.Range(6, 10) : (subDiff == DailyTaskDifficulty.Hard ? UnityEngine.Random.Range(10, 15) : UnityEngine.Random.Range(15, 26)));
-                    }
-                    
-                    var submitTask = new DailyTask
-                    {
-                        id = 200000 + itemId,
-                        type = DailyTaskType.SubmitItem,
-                        targetItemId = itemId,
-                        requiredAmount = submitAmount,
-                        difficulty = subDiff,
-                        title = $"提交 {meta.DisplayName}",
-                        description = $"提交 {meta.DisplayName} x{submitAmount}"
-                    };
-                    AssignRewardPreview(submitTask);
-                    AssignDifficulty(submitTask);
-                    AdjustTaskByDifficulty(submitTask);
-                    tasks.Add(submitTask);
                 }
             }
             return tasks;
         }
 
-        private List<DailyTask> BuildKillEnemyTasks()
+        private List<DailyTask> BuildKillEnemyTasks(HashSet<int> excludedIds)
         {
             var tasks = new List<DailyTask>();
             var presets = GameplayDataSettings.CharacterRandomPresetData?.presets ?? new List<CharacterRandomPreset>();
             presets = presets.Where(p => p != null && DailyQuestConfig.AllowedEnemyNames.Contains(p.DisplayName)).ToList();
             int killBase = 300000;
-            int idx = 0;
+            
+            // Randomize starting index to avoid ID collision loop if possible, 
+            // though excludedIds check is the real fix.
+            int idx = UnityEngine.Random.Range(0, 500); 
 
             foreach (var preset in presets)
             {
+                int id = killBase + idx++;
+                if (excludedIds.Contains(id)) continue;
+
                 bool isBoss = DailyQuestConfig.BossEnemyNames.Contains(preset.DisplayName);
                 int amount;
                 if (isBoss)
@@ -507,7 +572,7 @@ namespace DailyQuests
                 
                 var t = new DailyTask
                 {
-                    id = killBase + idx++,
+                    id = id,
                     type = DailyTaskType.KillEnemy,
                     requiredAmount = amount,
                     requireEnemyNameKey = preset.nameKey,
@@ -522,7 +587,7 @@ namespace DailyQuests
             return tasks;
         }
 
-        private List<DailyTask> BuildChallengeTasks()
+        private List<DailyTask> BuildChallengeTasks(HashSet<int> excludedIds)
         {
             var tasks = new List<DailyTask>();
             var presets = GameplayDataSettings.CharacterRandomPresetData?.presets ?? new List<CharacterRandomPreset>();
@@ -543,11 +608,15 @@ namespace DailyQuests
             }
 
             int challengeBase = 500000;
-            int cidx = 0;
+            int cidx = UnityEngine.Random.Range(0, 500);
 
             foreach (var preset in presets)
             {
                 if (ownedWeaponIds.Count == 0) break;
+                
+                int id = challengeBase + cidx++;
+                if (excludedIds.Contains(id)) continue;
+
                 int pickWeaponIndex = UnityEngine.Random.Range(0, ownedWeaponIds.Count);
                 int weaponId = ownedWeaponIds[pickWeaponIndex];
                 var wmeta = ItemAssetsCollection.GetMetaData(weaponId);
@@ -570,7 +639,7 @@ namespace DailyQuests
 
                 var ct = new DailyTask
                 {
-                    id = challengeBase + cidx++,
+                    id = id,
                     type = DailyTaskType.ChallengeKill,
                     targetItemId = weaponId, 
                     requiredWeaponItemId = weaponId,
@@ -588,19 +657,22 @@ namespace DailyQuests
             return tasks;
         }
 
-        private List<DailyTask> BuildSpendTasks()
+        private List<DailyTask> BuildSpendTasks(HashSet<int> excludedIds)
         {
             var tasks = new List<DailyTask>();
             int cashTypeId = GameplayDataSettings.ItemAssets.CashItemTypeID;
             for (int s = 0; s < 10; s++)
             {
+                int id = 400000 + s;
+                if (excludedIds.Contains(id)) continue;
+
                 int roll = UnityEngine.Random.Range(0, 100);
                 DailyTaskDifficulty diff = roll < 30 ? DailyTaskDifficulty.Easy : (roll < 65 ? DailyTaskDifficulty.Normal : DailyTaskDifficulty.Hard);
                 int needAmount = diff == DailyTaskDifficulty.Easy ? UnityEngine.Random.Range(10000, 25001) : (diff == DailyTaskDifficulty.Normal ? UnityEngine.Random.Range(30000, 65001) : UnityEngine.Random.Range(80000, 150001));
                 
                 var spend = new DailyTask
                 {
-                    id = 400000 + s,
+                    id = id,
                     type = DailyTaskType.SpendCashAtMerchant,
                     targetItemId = cashTypeId,
                     requiredAmount = needAmount,
@@ -948,7 +1020,21 @@ namespace DailyQuests
         {
             var t = tasks.Find(x => x.id == id);
             if (t == null || t.type != DailyTaskType.SubmitItem || !t.accepted || t.finished) return;
+            
             var items = ItemUtilities.FindAllBelongsToPlayer(e => e != null && e.TypeID == t.targetItemId);
+            
+            // Safety: Filter out equipped items to prevent accidents
+            var main = CharacterMainControl.Main;
+            if (main != null)
+            {
+                items.RemoveAll(it => 
+                    (main.PrimWeaponSlot() != null && main.PrimWeaponSlot().Content == it) ||
+                    (main.SecWeaponSlot() != null && main.SecWeaponSlot().Content == it) ||
+                    (main.MeleeWeaponSlot() != null && main.MeleeWeaponSlot().Content == it) ||
+                    (main.agentHolder != null && main.agentHolder.CurrentHoldItemAgent != null && main.agentHolder.CurrentHoldItemAgent.Item == it)
+                );
+            }
+
             int need = t.requiredAmount - t.progress;
             int consumed = 0;
             foreach (var item in items)

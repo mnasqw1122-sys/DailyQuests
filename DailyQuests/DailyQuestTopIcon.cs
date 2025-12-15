@@ -1,5 +1,6 @@
 using Duckov.UI;
 using Duckov;
+using Duckov.Utilities;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -16,11 +17,24 @@ namespace DailyQuests
 
         private void OnEnable()
         {
-            EnsureIcon();
+            // Wait one frame to ensure UI manager is ready
+            StartCoroutine(EnsureIconRoutine());
         }
 
         private void OnDisable()
         {
+            if (iconGo != null)
+            {
+                Destroy(iconGo);
+                iconGo = null!;
+                rt = null!;
+            }
+        }
+
+        private System.Collections.IEnumerator EnsureIconRoutine()
+        {
+            yield return null;
+            EnsureIcon();
         }
 
         private void EnsureIcon()
@@ -32,41 +46,29 @@ namespace DailyQuests
             {
                 iconGo = existed.gameObject;
                 rt = iconGo.GetComponent<RectTransform>();
-                if (rt != null)
-                {
-                    rt.anchorMin = new Vector2(0f, 1f);
-                    rt.anchorMax = new Vector2(0f, 1f);
-                    rt.pivot = new Vector2(0f, 1f);
-                    rt.sizeDelta = new Vector2(40, 40);
-                    float px = PlayerPrefs.GetFloat(KeyX, 8f);
-                    float py = PlayerPrefs.GetFloat(KeyY, -8f);
-                    rt.anchoredPosition = new Vector2(px, py);
-                }
+                UpdateIconPosition();
                 return;
             }
 
             iconGo = new GameObject("DailyQuestMenuIcon");
             iconGo.transform.SetParent(parent, false);
             rt = iconGo.AddComponent<RectTransform>();
-            rt.anchorMin = new Vector2(0f, 1f);
-            rt.anchorMax = new Vector2(0f, 1f);
-            rt.pivot = new Vector2(0f, 1f);
-            rt.sizeDelta = new Vector2(40, 40);
-            float x = PlayerPrefs.GetFloat(KeyX, 8f);
-            float y = PlayerPrefs.GetFloat(KeyY, -8f);
-            rt.anchoredPosition = new Vector2(x, y);
+            UpdateIconPosition();
 
             var btn = iconGo.AddComponent<Button>();
             var bg = iconGo.AddComponent<Image>();
             bg.color = new Color(1f, 1f, 1f, 0.12f);
 
-            var labelGo = new GameObject("Label");
-            labelGo.transform.SetParent(iconGo.transform, false);
-            var label = labelGo.AddComponent<TextMeshProUGUI>();
+            // Use template to ensure font is correct
+            var labelTemplate = GameplayDataSettings.UIStyle.TemplateTextUGUI;
+            var label = Instantiate(labelTemplate, iconGo.transform, false);
+            label.name = "Label";
             label.text = "任";
             label.color = new Color(1f, 1f, 1f, 0.95f);
             label.alignment = TextAlignmentOptions.Center;
             label.fontSize = 22f;
+            label.enableWordWrapping = false;
+            
             var labelRt = label.rectTransform;
             labelRt.anchorMin = new Vector2(0.5f, 0.5f);
             labelRt.anchorMax = new Vector2(0.5f, 0.5f);
@@ -75,6 +77,18 @@ namespace DailyQuests
             labelRt.anchoredPosition = Vector2.zero;
 
             btn.onClick.AddListener(OpenView);
+        }
+
+        private void UpdateIconPosition()
+        {
+            if (rt == null) return;
+            rt.anchorMin = new Vector2(0f, 1f);
+            rt.anchorMax = new Vector2(0f, 1f);
+            rt.pivot = new Vector2(0f, 1f);
+            rt.sizeDelta = new Vector2(40, 40);
+            float x = PlayerPrefs.GetFloat(KeyX, 8f);
+            float y = PlayerPrefs.GetFloat(KeyY, -8f);
+            rt.anchoredPosition = new Vector2(x, y);
         }
 
         private void OpenView()
@@ -102,6 +116,11 @@ namespace DailyQuests
             if (rt == null) return;
             if (!(Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt))) return;
             rt.anchoredPosition += eventData.delta;
+            
+            // Clamp to screen bounds (simple check)
+            float x = Mathf.Clamp(rt.anchoredPosition.x, -Screen.width / 2f, Screen.width / 2f);
+            float y = Mathf.Clamp(rt.anchoredPosition.y, -Screen.height / 2f, Screen.height / 2f);
+            rt.anchoredPosition = new Vector2(x, y);
         }
 
         public void OnEndDrag(PointerEventData eventData)

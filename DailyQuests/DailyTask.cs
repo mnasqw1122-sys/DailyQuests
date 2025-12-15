@@ -41,8 +41,12 @@ namespace DailyQuests
         public string rewardPreviewText = string.Empty;
         public int rewardCashAmount;
         public int rewardExpAmount;
+        
+        [Obsolete("Use rewardItems list instead.")]
         public int rewardItemTypeId;
+        [Obsolete("Use rewardItems list instead.")]
         public int rewardItemCount;
+        
         public List<RewardItem> rewardItems = new List<RewardItem>();
         public int requiredWeaponItemId;
         public bool rewardClaimed;
@@ -52,6 +56,37 @@ namespace DailyQuests
         {
             public int typeId;
             public int count;
+        }
+
+        /// <summary>
+        /// Validates data integrity and migrates legacy fields.
+        /// Should be called after loading data.
+        /// </summary>
+        public void ValidateState()
+        {
+            // Migrate legacy reward fields
+            if (rewardItems == null) rewardItems = new List<RewardItem>();
+            
+            #pragma warning disable 612, 618
+            if (rewardItems.Count == 0 && rewardItemTypeId > 0 && rewardItemCount > 0)
+            {
+                rewardItems.Add(new RewardItem { typeId = rewardItemTypeId, count = rewardItemCount });
+                rewardItemTypeId = 0;
+                rewardItemCount = 0;
+            }
+            #pragma warning restore 612, 618
+
+            // Clamp progress and sync finished state
+            if (requiredAmount > 0)
+            {
+                if (progress > requiredAmount) progress = requiredAmount;
+                if (progress < 0) progress = 0;
+                
+                if (progress >= requiredAmount) finished = true;
+            }
+
+            // Safety: If reward is claimed, task must be finished
+            if (rewardClaimed) finished = true;
         }
 
         public Sprite Icon
