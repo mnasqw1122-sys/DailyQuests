@@ -253,8 +253,8 @@ namespace DailyQuests
                     rewardPreviewText = t.rewardPreviewText,
                     rewardCashAmount = t.rewardCashAmount,
                     rewardExpAmount = t.rewardExpAmount,
-                    rewardItemTypeId = t.rewardItemTypeId,
-                    rewardItemCount = t.rewardItemCount,
+                    rewardItemTypeId = (t.rewardItems != null && t.rewardItems.Count > 0) ? t.rewardItems[0].typeId : 0,
+                    rewardItemCount = (t.rewardItems != null && t.rewardItems.Count > 0) ? t.rewardItems[0].count : 0,
                     rewardItemTypeIds = (t.rewardItems != null) ? t.rewardItems.ConvertAll(ri => ri.typeId) : new List<int>(),
                     rewardItemCounts = (t.rewardItems != null) ? t.rewardItems.ConvertAll(ri => ri.count) : new List<int>(),
                     rewardClaimed = t.rewardClaimed
@@ -291,8 +291,6 @@ namespace DailyQuests
                             rewardPreviewText = s.rewardPreviewText,
                             rewardCashAmount = s.rewardCashAmount,
                             rewardExpAmount = s.rewardExpAmount,
-                            rewardItemTypeId = s.rewardItemTypeId,
-                            rewardItemCount = s.rewardItemCount,
                             rewardClaimed = s.rewardClaimed
                         };
                         
@@ -304,6 +302,13 @@ namespace DailyQuests
                             {
                                 t.rewardItems.Add(new DailyTask.RewardItem{ typeId = s.rewardItemTypeIds[i], count = s.rewardItemCounts[i] });
                             }
+                        }
+                        else if (s.rewardItemTypeId > 0 && s.rewardItemCount > 0)
+                        {
+                            t.rewardItems = new List<DailyTask.RewardItem>
+                            {
+                                new DailyTask.RewardItem { typeId = s.rewardItemTypeId, count = s.rewardItemCount }
+                            };
                         }
 
                         // Fallback title generation if missing
@@ -421,7 +426,7 @@ namespace DailyQuests
             lastSavedDate = currentDateKey;
         }
 
-        private List<DailyTask> BuildPool(HashSet<int> excludedIds = null)
+        private List<DailyTask> BuildPool(HashSet<int>? excludedIds = null)
         {
             var result = new List<DailyTask>();
             if (excludedIds == null) excludedIds = new HashSet<int>();
@@ -1171,17 +1176,7 @@ namespace DailyQuests
                 }
             }
             t.rewardItems = items;
-            if (items.Count > 0)
-            {
-                t.rewardItemTypeId = items[0].typeId;
-                t.rewardItemCount = items[0].count;
-            }
-            else
-            {
-                t.rewardItemTypeId = 0;
-                t.rewardItemCount = 0;
-            }
-
+            
             if (t.type == DailyTaskType.SpendCashAtMerchant)
             {
                 float rMult = GetDifficultyMultiplier(t.difficulty);
@@ -1271,10 +1266,12 @@ namespace DailyQuests
             var list = t.rewardItems;
             if (list == null || list.Count == 0)
             {
+                #pragma warning disable 618
                 if (t.rewardItemTypeId > 0 && t.rewardItemCount > 0)
                 {
                     list = new List<DailyTask.RewardItem> { new DailyTask.RewardItem { typeId = t.rewardItemTypeId, count = t.rewardItemCount } };
                 }
+                #pragma warning restore 618
             }
             var safeList = list ?? new List<DailyTask.RewardItem>();
             for (int i = 0; i < safeList.Count; i++)
@@ -1323,6 +1320,7 @@ namespace DailyQuests
                 if (t.rewardCashAmount <= 0 || t.rewardExpAmount <= 0) need = true;
                 if (t.rewardItems == null || t.rewardItems.Count == 0)
                 {
+                    #pragma warning disable 618
                     if (t.rewardItemTypeId > 0 && t.rewardItemCount > 0)
                     {
                          // Validate legacy single item
@@ -1341,6 +1339,7 @@ namespace DailyQuests
                     {
                         need = true;
                     }
+                    #pragma warning restore 618
                 }
                 else
                 {

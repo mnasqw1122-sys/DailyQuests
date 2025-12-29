@@ -338,9 +338,10 @@ namespace DailyQuests
         {
             ClearEntries();
             var tasks = DailyQuestManager.Instance.GetDailyTasks();
-            for (int i = 0; i < tasks.Count; i++)
+            var sortedTasks = tasks.OrderByDescending(t => t.accepted).ToList();
+            for (int i = 0; i < sortedTasks.Count; i++)
             {
-                CreateEntry(tasks[i]);
+                CreateEntry(sortedTasks[i]);
             }
         }
 
@@ -355,6 +356,7 @@ namespace DailyQuests
             {
                 entryGo = entryPool.Pop();
                 entryGo.SetActive(true);
+                entryGo.transform.SetAsLastSibling();
                 entryGo.name = $"Entry_{task.id}";
                 
                 nameText = entryGo.GetComponentInChildren<TextMeshProUGUI>();

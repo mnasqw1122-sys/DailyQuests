@@ -16,7 +16,7 @@ namespace DailyQuests
 
         private void Awake()
         {
-            Debug.Log("DailyQuests V0.93 Loaded");
+            Debug.Log("DailyQuests V0.95 Loaded");
             SodaCraft.Localizations.LocalizationManager.SetOverrideText("UI_DailyQuest", "每日任务");
         }
 
