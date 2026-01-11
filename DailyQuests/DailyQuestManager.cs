@@ -549,7 +549,7 @@ namespace DailyQuests
         {
             var tasks = new List<DailyTask>();
             var presets = GameplayDataSettings.CharacterRandomPresetData?.presets ?? new List<CharacterRandomPreset>();
-            presets = presets.Where(p => p != null && DailyQuestConfig.AllowedEnemyNames.Contains(p.DisplayName)).ToList();
+            presets = presets.Where(p => p != null && (DailyQuestConfig.AllowedEnemyNames.Contains(p.DisplayName) || DailyQuestConfig.AllowedEnemyNames.Contains(p.nameKey))).ToList();
             int killBase = 300000;
             
             // Randomize starting index to avoid ID collision loop if possible, 
@@ -561,7 +561,7 @@ namespace DailyQuests
                 int id = killBase + idx++;
                 if (excludedIds.Contains(id)) continue;
 
-                bool isBoss = DailyQuestConfig.BossEnemyNames.Contains(preset.DisplayName);
+                bool isBoss = DailyQuestConfig.BossEnemyNames.Contains(preset.DisplayName) || DailyQuestConfig.BossEnemyNames.Contains(preset.nameKey);
                 int amount;
                 if (isBoss)
                 {
@@ -596,7 +596,7 @@ namespace DailyQuests
         {
             var tasks = new List<DailyTask>();
             var presets = GameplayDataSettings.CharacterRandomPresetData?.presets ?? new List<CharacterRandomPreset>();
-            presets = presets.Where(p => p != null && DailyQuestConfig.AllowedEnemyNames.Contains(p.DisplayName)).ToList();
+            presets = presets.Where(p => p != null && (DailyQuestConfig.AllowedEnemyNames.Contains(p.DisplayName) || DailyQuestConfig.AllowedEnemyNames.Contains(p.nameKey))).ToList();
             
             var ownedItems = ItemUtilities.FindAllBelongsToPlayer(e => e != null);
             var ownedWeaponIds = new List<int>();
@@ -625,7 +625,7 @@ namespace DailyQuests
                 int pickWeaponIndex = UnityEngine.Random.Range(0, ownedWeaponIds.Count);
                 int weaponId = ownedWeaponIds[pickWeaponIndex];
                 var wmeta = ItemAssetsCollection.GetMetaData(weaponId);
-                bool isBoss = DailyQuestConfig.BossEnemyNames.Contains(preset.DisplayName);
+                bool isBoss = DailyQuestConfig.BossEnemyNames.Contains(preset.DisplayName) || DailyQuestConfig.BossEnemyNames.Contains(preset.nameKey);
                 int amount;
                 DailyTaskDifficulty diff;
                 
@@ -877,7 +877,7 @@ namespace DailyQuests
                 }
                 case DailyTaskType.ChallengeKill:
                 {
-                    if (!string.IsNullOrEmpty(t.requireEnemyDisplayName) && DailyQuestConfig.BossEnemyNames.Contains(t.requireEnemyDisplayName))
+                    if (!string.IsNullOrEmpty(t.requireEnemyDisplayName) && (DailyQuestConfig.BossEnemyNames.Contains(t.requireEnemyDisplayName) || (!string.IsNullOrEmpty(t.requireEnemyNameKey) && DailyQuestConfig.BossEnemyNames.Contains(t.requireEnemyNameKey))))
                     {
                         t.difficulty = DailyTaskDifficulty.Epic;
                     }
@@ -973,7 +973,7 @@ namespace DailyQuests
             
             string enemyDisplayName = character.characterPreset.DisplayName;
             string enemyNameKey = character.characterPreset.nameKey;
-            bool isAllowed = DailyQuestConfig.AllowedEnemyNames.Contains(enemyDisplayName);
+            bool isAllowed = DailyQuestConfig.AllowedEnemyNames.Contains(enemyDisplayName) || DailyQuestConfig.AllowedEnemyNames.Contains(enemyNameKey);
 
             foreach (var t in tasks)
             {
