@@ -59,12 +59,12 @@ namespace DailyQuests
         }
 
         /// <summary>
-        /// Validates data integrity and migrates legacy fields.
-        /// Should be called after loading data.
+        /// 验证数据完整性并迁移旧版字段。
+        /// 应在加载数据后调用。
         /// </summary>
         public void ValidateState()
         {
-            // Migrate legacy reward fields
+            // 迁移旧版奖励字段
             if (rewardItems == null) rewardItems = new List<RewardItem>();
             
             #pragma warning disable 612, 618
@@ -76,7 +76,7 @@ namespace DailyQuests
             }
             #pragma warning restore 612, 618
 
-            // Clamp progress and sync finished state
+            // 限制进度并同步完成状态
             if (requiredAmount > 0)
             {
                 if (progress > requiredAmount) progress = requiredAmount;
@@ -85,7 +85,7 @@ namespace DailyQuests
                 if (progress >= requiredAmount) finished = true;
             }
 
-            // Safety: If reward is claimed, task must be finished
+            // 安全措施：如果奖励已领取，任务必须已完成
             if (rewardClaimed) finished = true;
         }
 

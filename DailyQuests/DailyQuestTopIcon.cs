@@ -17,7 +17,7 @@ namespace DailyQuests
 
         private void OnEnable()
         {
-            // Wait one frame to ensure UI manager is ready
+            // 等待一帧确保UI管理器已就绪
             StartCoroutine(EnsureIconRoutine());
         }
 
@@ -57,16 +57,31 @@ namespace DailyQuests
 
             var btn = iconGo.AddComponent<Button>();
             var bg = iconGo.AddComponent<Image>();
-            bg.color = new Color(1f, 1f, 1f, 0.12f);
+            bg.color = new Color(0.15f, 0.15f, 0.2f, 0.9f);
+            
+            var shadow = iconGo.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.6f);
+            shadow.effectDistance = new Vector2(2, -2);
+            
+            var outline = iconGo.AddComponent<Outline>();
+            outline.effectColor = new Color(1f, 0.7f, 0.3f, 0.6f);
+            outline.effectDistance = new Vector2(1, 1);
 
-            // Use template to ensure font is correct
+            var colors = btn.colors;
+            colors.normalColor = new Color(0.15f, 0.15f, 0.2f, 0.9f);
+            colors.highlightedColor = new Color(0.25f, 0.25f, 0.35f, 0.95f);
+            colors.pressedColor = new Color(0.35f, 0.35f, 0.45f, 1f);
+            colors.selectedColor = new Color(0.25f, 0.25f, 0.35f, 0.95f);
+            btn.colors = colors;
+
             var labelTemplate = GameplayDataSettings.UIStyle.TemplateTextUGUI;
             var label = Instantiate(labelTemplate, iconGo.transform, false);
             label.name = "Label";
             label.text = "任";
-            label.color = new Color(1f, 1f, 1f, 0.95f);
+            label.color = new Color(1f, 0.85f, 0.5f, 1f);
             label.alignment = TextAlignmentOptions.Center;
-            label.fontSize = 22f;
+            label.fontSize = 24f;
+            label.fontStyle = FontStyles.Bold;
             label.enableWordWrapping = false;
             
             var labelRt = label.rectTransform;
@@ -117,7 +132,7 @@ namespace DailyQuests
             if (!(Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt))) return;
             rt.anchoredPosition += eventData.delta;
             
-            // Clamp to screen bounds (simple check)
+            // 限制在屏幕边界内（简单检查）
             float x = Mathf.Clamp(rt.anchoredPosition.x, -Screen.width / 2f, Screen.width / 2f);
             float y = Mathf.Clamp(rt.anchoredPosition.y, -Screen.height / 2f, Screen.height / 2f);
             rt.anchoredPosition = new Vector2(x, y);

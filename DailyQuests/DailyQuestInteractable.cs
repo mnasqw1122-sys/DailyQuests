@@ -9,7 +9,7 @@ namespace DailyQuests
 
         protected override void Awake()
         {
-            // Initialize private field otherInterablesInGroup in base class to avoid NRE in base.Awake()
+            // 初始化基类中的私有字段 otherInterablesInGroup 以避免在 base.Awake() 中出现空引用异常
             try 
             {
                 var field = typeof(InteractableBase).GetField("otherInterablesInGroup", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
@@ -30,48 +30,48 @@ namespace DailyQuests
         protected override void OnInteractStart(CharacterMainControl interactCharacter)
         {
             try
-            {
-                // Prefer Singleton instance
-                if (DailyQuestView.Instance != null)
                 {
-                    view = DailyQuestView.Instance;
-                }
-
-                if (view == null)
-                {
-                    // Create new if missing
-                    var go = new GameObject("DailyQuestView");
-                    
-                    // Fix: Ensure parent is valid UI root, fallback to creating a temporary Canvas if needed
-                    Transform parent = null!;
-                    if (GameplayUIManager.Instance != null)
+                    // 优先使用单例实例
+                    if (DailyQuestView.Instance != null)
                     {
-                        parent = GameplayUIManager.Instance.transform;
+                        view = DailyQuestView.Instance;
                     }
-                    else
+
+                    if (view == null)
                     {
-                        // Fallback: Try find any Canvas
-                        var canvas = FindObjectOfType<Canvas>();
-                        if (canvas != null) parent = canvas.transform;
+                        // 如果缺失则创建新的
+                        var go = new GameObject("DailyQuestView");
+                        
+                        // 修复：确保父级是有效的UI根节点，必要时回退创建临时Canvas
+                        Transform parent = null!;
+                        if (GameplayUIManager.Instance != null)
+                        {
+                            parent = GameplayUIManager.Instance.transform;
+                        }
                         else
                         {
-                            // Last resort: create a canvas
-                            var cGo = new GameObject("TempCanvas");
-                            var c = cGo.AddComponent<Canvas>();
-                            c.renderMode = RenderMode.ScreenSpaceOverlay;
-                            parent = cGo.transform;
+                            // 回退方案：尝试查找任何Canvas
+                            var canvas = FindObjectOfType<Canvas>();
+                            if (canvas != null) parent = canvas.transform;
+                            else
+                            {
+                                // 最后手段：创建一个canvas
+                                var cGo = new GameObject("TempCanvas");
+                                var c = cGo.AddComponent<Canvas>();
+                                c.renderMode = RenderMode.ScreenSpaceOverlay;
+                                parent = cGo.transform;
+                            }
                         }
+                        
+                        go.transform.SetParent(parent, false);
+                        view = go.AddComponent<DailyQuestView>();
                     }
                     
-                    go.transform.SetParent(parent, false);
-                    view = go.AddComponent<DailyQuestView>();
+                    view.Open();
+                    
+                    // 修复：必须停止交互以释放玩家控制锁定
+                    StopInteract();
                 }
-                
-                view.Open();
-                
-                // Fix: Must stop interact to release player control lock
-                StopInteract();
-            }
             catch (System.Exception ex)
             {
                 Debug.LogError($"[DailyQuests] Failed to open DailyQuestView: {ex}");

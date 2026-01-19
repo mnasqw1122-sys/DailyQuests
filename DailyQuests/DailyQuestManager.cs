@@ -110,7 +110,7 @@ namespace DailyQuests
         private void Update()
         {
             updateTimer += Time.deltaTime;
-            if (updateTimer > 60f) // Check every minute
+            if (updateTimer > 60f) // 每分钟检查一次
             {
                 updateTimer = 0f;
                 CheckDayChange();
@@ -174,18 +174,18 @@ namespace DailyQuests
 
         public void RefreshUnaccepted()
         {
-            // 1. Task Refresh Deadlock Fix: Allow abandoning expired tasks if list is full
+            // 1. 任务刷新死锁修复：如果列表已满，允许放弃过期的任务
             var keep = tasks.Where(t => t.accepted || (t.finished && !t.rewardClaimed)).ToList();
             
-            // If player hoarded too many tasks (>= DailyCount), force abandon the oldest accepted but unfinished ones
-            // to make room for at least 3 new tasks.
+            // 如果玩家囤积了太多任务（>= DailyCount），强制放弃最旧的已接取但未完成的任务
+            // 为至少3个新任务腾出空间
             if (keep.Count >= DailyCount)
             {
                 int slotsNeeded = 3;
                 int slotsFreed = 0;
                 
-                // Sort by ID is a rough proxy for creation time if ID scheme is stable, 
-                // but since we don't have timestamps, we'll just remove non-finished accepted tasks.
+                // 如果ID方案稳定，按ID排序是创建时间的粗略代理，
+                // 但由于我们没有时间戳，我们只移除未完成的已接取任务
                 for (int i = keep.Count - 1; i >= 0; i--)
                 {
                     var t = keep[i];
@@ -205,7 +205,7 @@ namespace DailyQuests
                 return;
             }
             
-            // 5. ID Collision Fix: Pass existing IDs to exclude them from new pool
+            // 5. ID冲突修复：传递现有ID以从新池中排除它们
             var existingIds = new HashSet<int>(keep.Select(k => k.id));
             var candidates = BuildPool(existingIds);
             
@@ -217,7 +217,7 @@ namespace DailyQuests
 
         public void OnQuestCompleted(Duckov.Quests.Quest quest)
         {
-            // no-op: native quests不参与每日任务
+            // 无操作：原生任务不参与每日任务
         }
 
         public object GenerateSaveData()
@@ -294,7 +294,7 @@ namespace DailyQuests
                             rewardClaimed = s.rewardClaimed
                         };
                         
-                        // Restore rewardItems list
+                        // 恢复奖励物品列表
                         if (s.rewardItemTypeIds != null && s.rewardItemCounts != null && s.rewardItemTypeIds.Count == s.rewardItemCounts.Count)
                         {
                             t.rewardItems = new List<DailyTask.RewardItem>();
@@ -311,7 +311,7 @@ namespace DailyQuests
                             };
                         }
 
-                        // Fallback title generation if missing
+                        // 如果缺失则回退生成标题
                         if (string.IsNullOrEmpty(t.title))
                         {
                             RegenerateTaskTitle(t);
@@ -321,7 +321,7 @@ namespace DailyQuests
                 }
                 else
                 {
-                    // Legacy support
+                    // 旧版本支持
                     tasks = new List<DailyTask>();
                     foreach (var id in d.questIds ?? new List<int>())
                     {
@@ -401,10 +401,10 @@ namespace DailyQuests
         {
             var keep = tasks.Where(t => t.accepted || (t.finished && !t.rewardClaimed)).ToList();
             
-            // 1. Task Refresh Deadlock Fix (Duplicate logic for daily reset)
+            // 1. 任务刷新死锁修复（每日重置的重复逻辑）
             if (keep.Count >= DailyCount)
             {
-                int slotsNeeded = 5; // More aggressive on daily reset
+                int slotsNeeded = 5; // 每日重置时更激进
                 for (int i = keep.Count - 1; i >= 0; i--)
                 {
                     var t = keep[i];
@@ -416,7 +416,7 @@ namespace DailyQuests
                 }
             }
 
-            // 5. ID Collision Fix
+            // 5. ID冲突修复
             var existingIds = new HashSet<int>(keep.Select(k => k.id));
             var pool = BuildPool(existingIds);
             
@@ -438,7 +438,7 @@ namespace DailyQuests
             result.AddRange(BuildChallengeTasks(excludedIds));
             result.AddRange(BuildSpendTasks(excludedIds));
 
-            // Ensure at least one cash submit task if submit list is empty
+            // 如果提交列表为空，确保至少有一个现金提交任务
             if (!result.Exists(t => t.type == DailyTaskType.SubmitItem))
             {
                 var cashTask = CreateCashSubmitTask();
@@ -476,7 +476,7 @@ namespace DailyQuests
                 int itemId = sourceItemIds[i];
                 var meta = ItemAssetsCollection.GetMetaData(itemId);
                 
-                // Use Item Task
+                // 使用物品任务
                 if (DailyQuestConfig.AllowedUseItemIds.Contains(itemId))
                 {
                     int id = 100000 + itemId;
@@ -503,7 +503,7 @@ namespace DailyQuests
                     }
                 }
 
-                // Submit Item Task
+                // 提交物品任务
                 if (DailyQuestConfig.AllowedSubmitItemIds.Contains(itemId))
                 {
                     int id = 200000 + itemId;
@@ -552,8 +552,8 @@ namespace DailyQuests
             presets = presets.Where(p => p != null && (DailyQuestConfig.AllowedEnemyNames.Contains(p.DisplayName) || DailyQuestConfig.AllowedEnemyNames.Contains(p.nameKey))).ToList();
             int killBase = 300000;
             
-            // Randomize starting index to avoid ID collision loop if possible, 
-            // though excludedIds check is the real fix.
+            // 如果可能，随机化起始索引以避免ID冲突循环，
+            // 不过 excludedIds 检查才是真正的修复
             int idx = UnityEngine.Random.Range(0, 500); 
 
             foreach (var preset in presets)
@@ -1028,7 +1028,7 @@ namespace DailyQuests
             
             var items = ItemUtilities.FindAllBelongsToPlayer(e => e != null && e.TypeID == t.targetItemId);
             
-            // Safety: Filter out equipped items to prevent accidents
+            // 安全措施：过滤掉已装备的物品以防止意外
             var main = CharacterMainControl.Main;
             if (main != null)
             {
@@ -1279,7 +1279,7 @@ namespace DailyQuests
                 int typeId = safeList[i].typeId;
                 int count = Mathf.Max(1, safeList[i].count);
                 
-                // Verify item exists before instantiating
+                // 在实例化之前验证物品是否存在
                 var meta = ItemAssetsCollection.GetMetaData(typeId);
                 if (meta.id == 0) continue;
 
@@ -1323,7 +1323,7 @@ namespace DailyQuests
                     #pragma warning disable 618
                     if (t.rewardItemTypeId > 0 && t.rewardItemCount > 0)
                     {
-                         // Validate legacy single item
+                         // 验证旧版单个物品
                          var meta = ItemAssetsCollection.GetMetaData(t.rewardItemTypeId);
                          if (meta.id != 0)
                          {
@@ -1331,7 +1331,7 @@ namespace DailyQuests
                          }
                          else
                          {
-                             need = true; // Invalid item, re-roll
+                             need = true; // 无效物品，重新生成
                              t.rewardItemTypeId = 0;
                          }
                     }
@@ -1343,7 +1343,7 @@ namespace DailyQuests
                 }
                 else
                 {
-                    // Validate existing list
+                    // 验证现有列表
                     t.rewardItems.RemoveAll(ri => ItemAssetsCollection.GetMetaData(ri.typeId).id == 0);
                     if (t.rewardItems.Count == 0) need = true;
                 }
