@@ -48,17 +48,23 @@ namespace DailyQuests
         private int selectedIndex = -1;
         private int selectedTaskId = -1;
 
-        private readonly Color rowSelectedColor = new Color(1f, 0.62f, 0.18f, 1f);
-        private readonly Color rowUnselectedColor = new Color(0f, 0f, 0f, 0.25f);
-        private readonly Color acceptBtnColor = new Color(0.39f, 0.75f, 0.47f, 1f);
-        private readonly Color submitBtnColor = new Color(0.87f, 0.96f, 1f, 1f);
-        private readonly Color submitTextColor = new Color(0.2f, 0.34f, 0.45f, 1f);
-        private readonly Color difficultyEasyColor = new Color(0.4f, 0.8f, 0.4f, 1f);
-        private readonly Color difficultyNormalColor = new Color(0.4f, 0.6f, 1f, 1f);
-        private readonly Color difficultyHardColor = new Color(1f, 0.5f, 0.3f, 1f);
+        private readonly Color rowSelectedColor = new Color(0.85f, 0.56f, 0.2f, 0.5f); // 塔科夫风格橙色半透明
+        private readonly Color rowUnselectedColor = new Color(0.12f, 0.12f, 0.14f, 0.6f); // 深色背景
+        private readonly Color rowHoverColor = new Color(0.25f, 0.25f, 0.28f, 0.7f);
+        
+        private readonly Color acceptBtnColor = new Color(0.2f, 0.6f, 0.3f, 1f); // 绿色
+        private readonly Color abandonBtnColor = new Color(0.7f, 0.25f, 0.25f, 1f); // 红色
+        private readonly Color submitBtnColor = new Color(0.2f, 0.5f, 0.7f, 1f); // 蓝色
+        private readonly Color finishBtnColor = new Color(0.85f, 0.56f, 0.2f, 1f); // 橙色
+
+        private readonly Color difficultyEasyColor = new Color(0.5f, 0.8f, 0.5f, 1f);
+        private readonly Color difficultyNormalColor = new Color(0.4f, 0.7f, 1f, 1f);
+        private readonly Color difficultyHardColor = new Color(1f, 0.6f, 0.2f, 1f);
         private readonly Color difficultyEpicColor = new Color(0.8f, 0.3f, 1f, 1f);
-        private readonly Color headerGradientTop = new Color(0.15f, 0.15f, 0.2f, 0.95f);
-        private readonly Color headerGradientBottom = new Color(0.1f, 0.1f, 0.15f, 0.95f);
+        
+        private readonly Color headerGradientTop = new Color(0.1f, 0.1f, 0.12f, 0.98f);
+        private readonly Color headerGradientBottom = new Color(0.08f, 0.08f, 0.1f, 0.95f);
+        private readonly Color panelBorderColor = new Color(0.4f, 0.4f, 0.45f, 0.4f);
 
         private class RowClickRelay : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
         {
@@ -66,6 +72,7 @@ namespace DailyQuests
             public int index;
             public int taskId;
             public Image backgroundImage = null!;
+            
             public void OnPointerClick(PointerEventData eventData)
             {
                 if (view == null) return;
@@ -77,7 +84,7 @@ namespace DailyQuests
                 if (view == null || backgroundImage == null) return;
                 if (index != view.selectedIndex)
                 {
-                    backgroundImage.color = new Color(0.15f, 0.15f, 0.2f, 0.6f);
+                    backgroundImage.color = view.rowHoverColor;
                 }
             }
             public void OnPointerExit(PointerEventData eventData)
@@ -140,7 +147,7 @@ namespace DailyQuests
             root.anchoredPosition = Vector2.zero;
 
             var bg = gameObject.AddComponent<Image>();
-            bg.color = new Color(0.08f, 0.08f, 0.1f, 0.95f);
+            bg.color = new Color(0.05f, 0.05f, 0.07f, 0.98f); // 更深邃的背景
 
             var headerGo = new GameObject("Header");
             headerGo.transform.SetParent(root, false);
@@ -148,55 +155,61 @@ namespace DailyQuests
             header.anchorMin = new Vector2(0, 1);
             header.anchorMax = new Vector2(1, 1);
             header.pivot = new Vector2(0.5f, 1);
-            float headerH = 72f;
+            float headerH = 64f; // 稍微调小一点头部
             header.sizeDelta = new Vector2(0, headerH);
             
             var headerBg = headerGo.AddComponent<Image>();
             headerBg.color = headerGradientTop;
             
             var headerBorder = headerGo.AddComponent<Outline>();
-            headerBorder.effectColor = new Color(0.3f, 0.3f, 0.4f, 0.5f);
+            headerBorder.effectColor = new Color(0.85f, 0.56f, 0.2f, 0.3f); // 橙色描边
             headerBorder.effectDistance = new Vector2(0, -2);
 
             var titleText = Object.Instantiate(GameplayDataSettings.UIStyle.TemplateTextUGUI);
             titleText.transform.SetParent(header, false);
-            titleText.text = "每日任务 V0.95";
+            titleText.text = "每日任务系统 <size=18><color=#888888>V0.96</color></size>";
             titleText.alignment = TextAlignmentOptions.MidlineLeft;
-            titleText.fontSize = 28f;
+            titleText.fontSize = 26f;
             titleText.fontStyle = FontStyles.Bold;
-            titleText.color = new Color(1f, 0.9f, 0.7f, 1f);
+            titleText.color = new Color(1f, 0.95f, 0.8f, 1f);
             titleText.rectTransform.anchorMin = new Vector2(0, 0.5f);
             titleText.rectTransform.anchorMax = new Vector2(0, 0.5f);
             titleText.rectTransform.pivot = new Vector2(0, 0.5f);
-            titleText.rectTransform.anchoredPosition = new Vector2(20, 0);
+            titleText.rectTransform.anchoredPosition = new Vector2(24, 0);
             title = titleText;
 
             var refreshGo = new GameObject("RefreshButton");
             refreshGo.transform.SetParent(header, false);
             btnRefresh = refreshGo.AddComponent<Button>();
             var img = refreshGo.AddComponent<Image>();
-            img.color = new Color(0.3f, 0.65f, 0.95f, 1f);
+            img.color = new Color(0.2f, 0.2f, 0.25f, 1f);
+            var refreshOutline = refreshGo.AddComponent<Outline>();
+            refreshOutline.effectColor = panelBorderColor;
+            
             var rt = refreshGo.GetComponent<RectTransform>();
-            rt.sizeDelta = new Vector2(140, 44);
+            rt.sizeDelta = new Vector2(160, 36);
             rt.anchorMin = new Vector2(1, 0.5f);
             rt.anchorMax = new Vector2(1, 0.5f);
             rt.pivot = new Vector2(1, 0.5f);
-            rt.anchoredPosition = new Vector2(-20, 0);
-            
-            var refreshShadow = refreshGo.AddComponent<Shadow>();
-            refreshShadow.effectColor = new Color(0f, 0f, 0f, 0.5f);
-            refreshShadow.effectDistance = new Vector2(2, -2);
+            rt.anchoredPosition = new Vector2(-24, 0);
             
             var refreshLabel = Object.Instantiate(GameplayDataSettings.UIStyle.TemplateTextUGUI);
             refreshLabel.transform.SetParent(refreshGo.transform, false);
-            refreshLabel.text = "刷新未接取";
+            refreshLabel.text = "刷新未接取任务";
             refreshLabel.alignment = TextAlignmentOptions.Center;
-            refreshLabel.fontSize = 20f;
-            refreshLabel.fontStyle = FontStyles.Bold;
-            refreshLabel.rectTransform.anchorMin = new Vector2(0, 0);
-            refreshLabel.rectTransform.anchorMax = new Vector2(1, 1);
+            refreshLabel.fontSize = 18f;
+            refreshLabel.color = new Color(0.9f, 0.9f, 0.9f, 1f);
+            refreshLabel.rectTransform.anchorMin = Vector2.zero;
+            refreshLabel.rectTransform.anchorMax = Vector2.one;
             refreshLabel.rectTransform.offsetMin = Vector2.zero;
             refreshLabel.rectTransform.offsetMax = Vector2.zero;
+            
+            var rbtnColors = btnRefresh.colors;
+            rbtnColors.normalColor = new Color(1f, 1f, 1f, 1f);
+            rbtnColors.highlightedColor = new Color(1.2f, 1.2f, 1.2f, 1f);
+            rbtnColors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 1f);
+            btnRefresh.colors = rbtnColors;
+            
             btnRefresh.onClick.AddListener(OnRefreshClicked);
 
             var bodyGo = new GameObject("Body");
@@ -204,57 +217,59 @@ namespace DailyQuests
             var bodyRt = bodyGo.AddComponent<RectTransform>();
             bodyRt.anchorMin = new Vector2(0, 0);
             bodyRt.anchorMax = new Vector2(1, 1);
-            bodyRt.offsetMin = new Vector2(20, 20);
-            bodyRt.offsetMax = new Vector2(-20, -(headerH + 16));
+            bodyRt.offsetMin = new Vector2(24, 24);
+            bodyRt.offsetMax = new Vector2(-24, -(headerH + 16));
             var bodyH = bodyGo.AddComponent<HorizontalLayoutGroup>();
             bodyH.childControlHeight = true;
             bodyH.childForceExpandHeight = true;
             bodyH.childForceExpandWidth = true;
-            bodyH.spacing = 12f;
-            bodyH.padding = new RectOffset(8, 8, 8, 8);
+            bodyH.spacing = 16f;
+            bodyH.padding = new RectOffset(0, 0, 0, 0);
 
             var leftGo = new GameObject("LeftPanel");
             leftGo.transform.SetParent(bodyGo.transform, false);
             leftPanel = leftGo.AddComponent<RectTransform>();
             var leftImg = leftGo.AddComponent<Image>();
-            leftImg.color = new Color(0, 0, 0, 0.25f);
-            leftImg.raycastTarget = false;
+            leftImg.color = new Color(0.08f, 0.08f, 0.1f, 0.5f);
             var leftBorder = leftGo.AddComponent<Outline>();
-            leftBorder.effectColor = new Color(0.4f, 0.4f, 0.5f, 0.3f);
-            leftBorder.effectDistance = new Vector2(2, 2);
+            leftBorder.effectColor = panelBorderColor;
+            leftBorder.effectDistance = new Vector2(1, 1);
             var leftLE = leftGo.AddComponent<LayoutElement>();
-            leftLE.preferredWidth = 440f;
+            leftLE.preferredWidth = 480f; // 稍微加宽左侧
             leftLE.flexibleWidth = 0f;
 
             var rightGo = new GameObject("RightPanel");
             rightGo.transform.SetParent(bodyGo.transform, false);
             rightPanel = rightGo.AddComponent<RectTransform>();
             var rightImg = rightGo.AddComponent<Image>();
-            rightImg.color = new Color(0, 0, 0, 0.18f);
-            rightImg.raycastTarget = false;
+            rightImg.color = new Color(0.08f, 0.08f, 0.1f, 0.5f);
             var rightBorder = rightGo.AddComponent<Outline>();
-            rightBorder.effectColor = new Color(0.4f, 0.4f, 0.5f, 0.3f);
-            rightBorder.effectDistance = new Vector2(2, 2);
+            rightBorder.effectColor = panelBorderColor;
+            rightBorder.effectDistance = new Vector2(1, 1);
             var rightLE = rightGo.AddComponent<LayoutElement>();
             rightLE.flexibleWidth = 1f;
 
+            // Scroll View setup for Left List
             var scrollGo = new GameObject("Scroll");
             scrollGo.transform.SetParent(leftGo.transform, false);
             var scrollRt = scrollGo.AddComponent<RectTransform>();
-            scrollRt.anchorMin = new Vector2(0, 0);
-            scrollRt.anchorMax = new Vector2(1, 1);
-            scrollRt.offsetMin = new Vector2(8, 8);
-            scrollRt.offsetMax = new Vector2(-8, -8);
+            scrollRt.anchorMin = Vector2.zero;
+            scrollRt.anchorMax = Vector2.one;
+            scrollRt.offsetMin = new Vector2(4, 4);
+            scrollRt.offsetMax = new Vector2(-4, -4);
             scroll = scrollGo.AddComponent<ScrollRect>();
             scroll.horizontal = false;
+            scroll.scrollSensitivity = 20f;
+            
             var viewportGo = new GameObject("Viewport");
             viewportGo.transform.SetParent(scrollGo.transform, false);
             var viewportRt = viewportGo.AddComponent<RectTransform>();
-            viewportRt.anchorMin = new Vector2(0, 0);
-            viewportRt.anchorMax = new Vector2(1, 1);
+            viewportRt.anchorMin = Vector2.zero;
+            viewportRt.anchorMax = Vector2.one;
             viewportRt.offsetMin = Vector2.zero;
             viewportRt.offsetMax = Vector2.zero;
             viewportGo.AddComponent<RectMask2D>();
+            
             var contentGo = new GameObject("Content");
             contentGo.transform.SetParent(viewportGo.transform, false);
             listParent = contentGo.AddComponent<RectTransform>();
@@ -262,195 +277,232 @@ namespace DailyQuests
             listParent.anchorMin = new Vector2(0, 1);
             listParent.anchorMax = new Vector2(1, 1);
             listParent.anchoredPosition = Vector2.zero;
+            
             var vlg = contentGo.AddComponent<VerticalLayoutGroup>();
             vlg.childControlHeight = true;
             vlg.childControlWidth = true;
             vlg.childForceExpandHeight = false;
             vlg.childForceExpandWidth = true;
-            vlg.spacing = 6f;
-            vlg.padding = new RectOffset(8, 8, 8, 8);
-            vlg.childAlignment = TextAnchor.UpperLeft;
+            vlg.spacing = 4f;
+            vlg.padding = new RectOffset(4, 4, 4, 4);
+            
             var fitter = contentGo.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            
             scroll.viewport = viewportRt;
             scroll.content = listParent;
 
+            // Right Panel Content Wrapper (Scroll View)
+            var rightScrollGo = new GameObject("RightScroll");
+            rightScrollGo.transform.SetParent(rightGo.transform, false);
+            var rightScrollRt = rightScrollGo.AddComponent<RectTransform>();
+            rightScrollRt.anchorMin = Vector2.zero;
+            rightScrollRt.anchorMax = Vector2.one;
+            rightScrollRt.offsetMin = new Vector2(4, 80); // 留出底部按钮空间
+            rightScrollRt.offsetMax = new Vector2(-4, -4);
+            
+            var rightScroll = rightScrollGo.AddComponent<ScrollRect>();
+            rightScroll.horizontal = false;
+            rightScroll.scrollSensitivity = 20f;
+            
+            var rightViewportGo = new GameObject("Viewport");
+            rightViewportGo.transform.SetParent(rightScrollGo.transform, false);
+            var rightViewportRt = rightViewportGo.AddComponent<RectTransform>();
+            rightViewportRt.anchorMin = Vector2.zero;
+            rightViewportRt.anchorMax = Vector2.one;
+            rightViewportRt.offsetMin = Vector2.zero;
+            rightViewportRt.offsetMax = Vector2.zero;
+            rightViewportGo.AddComponent<RectMask2D>();
+
             var rcGo = new GameObject("RightContent");
-            rcGo.transform.SetParent(rightGo.transform, false);
+            rcGo.transform.SetParent(rightViewportGo.transform, false);
             rightContent = rcGo.AddComponent<RectTransform>();
-            rightContent.anchorMin = new Vector2(0, 0);
+            rightContent.anchorMin = new Vector2(0, 1); // 顶部对齐
             rightContent.anchorMax = new Vector2(1, 1);
-            rightContent.offsetMin = new Vector2(16, 80);
-            rightContent.offsetMax = new Vector2(-16, -100);
+            rightContent.pivot = new Vector2(0, 1);
+            rightContent.anchoredPosition = Vector2.zero;
+            
             var vlg2 = rcGo.AddComponent<VerticalLayoutGroup>();
             vlg2.childControlHeight = true;
             vlg2.childControlWidth = true;
-            vlg2.childForceExpandHeight = true;
+            vlg2.childForceExpandHeight = false; // 必须为 false 才能配合 ContentSizeFitter
             vlg2.childForceExpandWidth = true;
-            vlg2.spacing = 24f;
-            vlg2.padding = new RectOffset(16, 16, 16, 16);
+            vlg2.spacing = 16f;
+            vlg2.padding = new RectOffset(20, 20, 16, 16);
             vlg2.childAlignment = TextAnchor.UpperLeft;
 
+            var rightFitter = rcGo.AddComponent<ContentSizeFitter>();
+            rightFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            
+            rightScroll.viewport = rightViewportRt;
+            rightScroll.content = rightContent;
+
+            // ... Title ...
             var titleContainer = new GameObject("TitleContainer");
             titleContainer.transform.SetParent(rcGo.transform, false);
             var titleRt = titleContainer.AddComponent<RectTransform>();
             var titleLE = titleContainer.AddComponent<LayoutElement>();
-            titleLE.preferredHeight = 60f;
-            titleLE.flexibleHeight = 1f;
+            titleLE.minHeight = 40f;
+            
             var dt = Object.Instantiate(GameplayDataSettings.UIStyle.TemplateTextUGUI);
             dt.transform.SetParent(titleContainer.transform, false);
-            dt.rectTransform.anchorMin = new Vector2(0, 0);
-            dt.rectTransform.anchorMax = new Vector2(1, 1);
-            dt.rectTransform.pivot = new Vector2(0, 0);
+            dt.rectTransform.anchorMin = Vector2.zero;
+            dt.rectTransform.anchorMax = Vector2.one;
             dt.rectTransform.offsetMin = Vector2.zero;
             dt.rectTransform.offsetMax = Vector2.zero;
             dt.enableWordWrapping = true;
-            dt.fontSize = 26f;
+            dt.fontSize = 28f;
             dt.fontStyle = FontStyles.Bold;
             dt.alignment = TextAlignmentOptions.TopLeft;
-            dt.color = new Color(1f, 0.85f, 0.6f, 1f);
+            dt.color = new Color(1f, 0.85f, 0.4f, 1f); // 金色
             detailTitle = dt.rectTransform;
 
+            // ... Separator ...
+            CreateSeparator(rcGo);
+
+            // ... Description ...
             var descContainer = new GameObject("DescContainer");
             descContainer.transform.SetParent(rcGo.transform, false);
-            var descRt = descContainer.AddComponent<RectTransform>();
             var descLE = descContainer.AddComponent<LayoutElement>();
-            descLE.preferredHeight = 40f;
-            descLE.flexibleHeight = 1f;
+            descLE.minHeight = 60f;
+            
             var dd = Object.Instantiate(GameplayDataSettings.UIStyle.TemplateTextUGUI);
             dd.transform.SetParent(descContainer.transform, false);
-            dd.rectTransform.anchorMin = new Vector2(0, 0);
-            dd.rectTransform.anchorMax = new Vector2(1, 1);
-            dd.rectTransform.pivot = new Vector2(0, 0);
+            dd.rectTransform.anchorMin = Vector2.zero;
+            dd.rectTransform.anchorMax = Vector2.one;
             dd.rectTransform.offsetMin = Vector2.zero;
             dd.rectTransform.offsetMax = Vector2.zero;
             dd.enableWordWrapping = true;
-            dd.fontSize = 18f;
+            dd.fontSize = 20f;
             dd.alignment = TextAlignmentOptions.TopLeft;
-            dd.color = new Color(0.9f, 0.9f, 0.95f, 1f);
+            dd.color = new Color(0.9f, 0.9f, 0.9f, 1f);
             detailDesc = dd.rectTransform;
 
-            var separator1 = CreateSeparator(rcGo);
-            
+            // ... Target ...
             var targetContainer = new GameObject("TargetContainer");
             targetContainer.transform.SetParent(rcGo.transform, false);
-            var targetRt = targetContainer.AddComponent<RectTransform>();
             var targetLE = targetContainer.AddComponent<LayoutElement>();
-            targetLE.preferredHeight = 40f;
-            targetLE.flexibleHeight = 1f;
+            targetLE.minHeight = 30f;
+            
             var tg = Object.Instantiate(GameplayDataSettings.UIStyle.TemplateTextUGUI);
             tg.transform.SetParent(targetContainer.transform, false);
-            tg.rectTransform.anchorMin = new Vector2(0, 0);
-            tg.rectTransform.anchorMax = new Vector2(1, 1);
-            tg.rectTransform.pivot = new Vector2(0, 0);
+            tg.rectTransform.anchorMin = Vector2.zero;
+            tg.rectTransform.anchorMax = Vector2.one;
             tg.rectTransform.offsetMin = Vector2.zero;
             tg.rectTransform.offsetMax = Vector2.zero;
             tg.enableWordWrapping = true;
-            tg.fontSize = 18f;
+            tg.fontSize = 20f;
             tg.alignment = TextAlignmentOptions.TopLeft;
-            tg.color = new Color(0.85f, 0.9f, 1f, 1f);
+            tg.color = new Color(0.7f, 0.8f, 1f, 1f);
             detailTarget = tg.rectTransform;
 
+            // ... Progress ...
             var progressContainer = new GameObject("ProgressContainer");
             progressContainer.transform.SetParent(rcGo.transform, false);
-            var progressRt = progressContainer.AddComponent<RectTransform>();
             var progressLE = progressContainer.AddComponent<LayoutElement>();
-            progressLE.preferredHeight = 60f;
+            progressLE.minHeight = 40f;
             
             var progressBgGo = new GameObject("ProgressBarBg");
             progressBgGo.transform.SetParent(progressContainer.transform, false);
             var progressBgRt = progressBgGo.AddComponent<RectTransform>();
-            progressBgRt.sizeDelta = new Vector2(0, 18);
+            progressBgRt.sizeDelta = new Vector2(0, 24); // 加粗进度条
             progressBgRt.anchorMin = new Vector2(0, 0.5f);
             progressBgRt.anchorMax = new Vector2(1, 0.5f);
             progressBgRt.pivot = new Vector2(0.5f, 0.5f);
             detailProgressBarBg = progressBgGo.AddComponent<Image>();
-            detailProgressBarBg.color = new Color(0.1f, 0.1f, 0.15f, 0.9f);
+            detailProgressBarBg.color = new Color(0.1f, 0.1f, 0.12f, 1f);
+            var pbgOutline = progressBgGo.AddComponent<Outline>();
+            pbgOutline.effectColor = new Color(0.5f, 0.5f, 0.5f, 0.3f);
             
             var progressFillGo = new GameObject("Fill");
             progressFillGo.transform.SetParent(progressBgGo.transform, false);
             var fillRt = progressFillGo.AddComponent<RectTransform>();
             fillRt.anchorMin = Vector2.zero;
             fillRt.anchorMax = Vector2.one;
-            fillRt.offsetMin = Vector2.zero;
-            fillRt.offsetMax = Vector2.zero;
+            fillRt.offsetMin = new Vector2(2, 2); // 内边距
+            fillRt.offsetMax = new Vector2(-2, -2);
             detailProgressBarFill = progressFillGo.AddComponent<Image>();
-            detailProgressBarFill.color = new Color(0.4f, 0.75f, 0.5f, 1f);
+            detailProgressBarFill.color = new Color(0.85f, 0.56f, 0.2f, 1f);
             
             detailProgressText = Object.Instantiate(GameplayDataSettings.UIStyle.TemplateTextUGUI);
             detailProgressText.transform.SetParent(progressContainer.transform, false);
             detailProgressText.alignment = TextAlignmentOptions.Center;
             detailProgressText.fontSize = 16f;
             detailProgressText.fontStyle = FontStyles.Bold;
-            detailProgressText.rectTransform.anchorMin = new Vector2(0, 0.5f);
-            detailProgressText.rectTransform.anchorMax = new Vector2(1, 0.5f);
-            detailProgressText.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            detailProgressText.rectTransform.anchoredPosition = Vector2.zero;
+            detailProgressText.color = Color.white;
+            detailProgressText.rectTransform.anchorMin = Vector2.zero;
+            detailProgressText.rectTransform.anchorMax = Vector2.one;
+            detailProgressText.rectTransform.offsetMin = Vector2.zero;
+            detailProgressText.rectTransform.offsetMax = Vector2.zero;
             detailProgress = detailProgressText.rectTransform;
 
-            var separator2 = CreateSeparator(rcGo);
+            CreateSeparator(rcGo);
 
+            // ... Reward Header ...
+            var rewardHeader = Object.Instantiate(GameplayDataSettings.UIStyle.TemplateTextUGUI);
+            rewardHeader.transform.SetParent(rcGo.transform, false);
+            rewardHeader.text = "任务奖励";
+            rewardHeader.fontSize = 22f;
+            rewardHeader.fontStyle = FontStyles.Bold;
+            rewardHeader.color = new Color(0.6f, 1f, 0.6f, 1f);
+            rewardHeader.alignment = TextAlignmentOptions.TopLeft;
+
+            // ... Rewards ...
             var rewardCashContainer = new GameObject("RewardCashContainer");
             rewardCashContainer.transform.SetParent(rcGo.transform, false);
-            var rewardCashRt = rewardCashContainer.AddComponent<RectTransform>();
             var rewardCashLE = rewardCashContainer.AddComponent<LayoutElement>();
-            rewardCashLE.preferredHeight = 40f;
-            rewardCashLE.flexibleHeight = 1f;
+            rewardCashLE.minHeight = 30f;
+            
             var rwce = Object.Instantiate(GameplayDataSettings.UIStyle.TemplateTextUGUI);
             rwce.transform.SetParent(rewardCashContainer.transform, false);
-            rwce.rectTransform.anchorMin = new Vector2(0, 0);
-            rwce.rectTransform.anchorMax = new Vector2(1, 1);
-            rwce.rectTransform.pivot = new Vector2(0, 0);
+            rwce.rectTransform.anchorMin = Vector2.zero;
+            rwce.rectTransform.anchorMax = Vector2.one;
             rwce.rectTransform.offsetMin = Vector2.zero;
             rwce.rectTransform.offsetMax = Vector2.zero;
-            rwce.enableWordWrapping = true;
-            rwce.fontSize = 18f;
+            rwce.fontSize = 20f;
             rwce.alignment = TextAlignmentOptions.TopLeft;
-            rwce.color = new Color(1f, 0.85f, 0.4f, 1f);
+            rwce.color = new Color(1f, 0.9f, 0.6f, 1f);
             detailRewardCashExp = rwce.rectTransform;
 
             var rewardItemsContainer = new GameObject("RewardItemsContainer");
             rewardItemsContainer.transform.SetParent(rcGo.transform, false);
-            var rewardItemsRt = rewardItemsContainer.AddComponent<RectTransform>();
             var rewardItemsLE = rewardItemsContainer.AddComponent<LayoutElement>();
-            rewardItemsLE.preferredHeight = 60f;
+            rewardItemsLE.minHeight = 60f;
             rewardItemsLE.flexibleHeight = 1f;
+            
             var rwit = Object.Instantiate(GameplayDataSettings.UIStyle.TemplateTextUGUI);
             rwit.transform.SetParent(rewardItemsContainer.transform, false);
-            rwit.rectTransform.anchorMin = new Vector2(0, 0);
-            rwit.rectTransform.anchorMax = new Vector2(1, 1);
-            rwit.rectTransform.pivot = new Vector2(0, 0);
+            rwit.rectTransform.anchorMin = Vector2.zero;
+            rwit.rectTransform.anchorMax = Vector2.one;
             rwit.rectTransform.offsetMin = Vector2.zero;
             rwit.rectTransform.offsetMax = Vector2.zero;
             rwit.enableWordWrapping = true;
-            rwit.fontSize = 18f;
+            rwit.fontSize = 20f;
             rwit.alignment = TextAlignmentOptions.TopLeft;
-            rwit.color = new Color(0.85f, 0.95f, 1f, 1f);
+            rwit.color = new Color(0.9f, 0.95f, 1f, 1f);
             detailRewardItems = rwit.rectTransform;
 
+            // ... Bottom Bar ...
             var bbGo = new GameObject("BottomBar");
             bbGo.transform.SetParent(rightGo.transform, false);
             bottomBar = bbGo.AddComponent<RectTransform>();
             bottomBar.anchorMin = new Vector2(0, 0);
             bottomBar.anchorMax = new Vector2(1, 0);
             bottomBar.pivot = new Vector2(0.5f, 0);
-            bottomBar.sizeDelta = new Vector2(0, 64);
-            bottomBar.anchoredPosition = new Vector2(0, 12);
+            bottomBar.sizeDelta = new Vector2(0, 72);
+            bottomBar.anchoredPosition = new Vector2(0, 16);
             var hb = bbGo.AddComponent<HorizontalLayoutGroup>();
             hb.childControlHeight = true;
             hb.childForceExpandHeight = true;
             hb.childForceExpandWidth = true;
-            hb.spacing = 12f;
-            hb.padding = new RectOffset(12, 12, 8, 8);
+            hb.spacing = 24f;
+            hb.padding = new RectOffset(24, 24, 8, 8);
 
-            btnAccept = CreateBottomButton(bbGo, "接取");
-            btnAbandon = CreateBottomButton(bbGo, "放弃");
-            btnSubmit = CreateBottomButton(bbGo, "提交");
-            btnFinish = CreateBottomButton(bbGo, "完成");
-            var accImg = btnAccept.GetComponent<Image>(); if (accImg != null) accImg.color = acceptBtnColor;
-            var subImg = btnSubmit.GetComponent<Image>(); if (subImg != null) subImg.color = submitBtnColor;
-            var subLabel = btnSubmit.GetComponentInChildren<TextMeshProUGUI>(); if (subLabel != null) subLabel.color = submitTextColor;
-            var finImg = btnFinish.GetComponent<Image>(); if (finImg != null) finImg.color = acceptBtnColor;
+            btnAccept = CreateBottomButton(bbGo, "接取任务", acceptBtnColor);
+            btnAbandon = CreateBottomButton(bbGo, "放弃任务", abandonBtnColor);
+            btnSubmit = CreateBottomButton(bbGo, "提交物品", submitBtnColor);
+            btnFinish = CreateBottomButton(bbGo, "领取奖励", finishBtnColor);
+            
             btnAccept.onClick.AddListener(() => { if (selectedTaskId > 0) { DailyQuestManager.Instance.Accept(selectedTaskId); RefreshList(); ShowDetail(selectedTaskId); } });
             btnAbandon.onClick.AddListener(() => { if (selectedTaskId > 0) { DailyQuestManager.Instance.Abandon(selectedTaskId); RefreshList(); ShowDetail(selectedTaskId); } });
             btnSubmit.onClick.AddListener(() => { if (selectedTaskId > 0) { DailyQuestManager.Instance.SubmitItemsForTask(selectedTaskId); RefreshList(); ShowDetail(selectedTaskId); } });
@@ -539,31 +591,38 @@ namespace DailyQuests
                 rt.sizeDelta = new Vector2(0, 96);
                 hbg = entryGo.AddComponent<Image>();
                 hbg.color = rowUnselectedColor;
-                var entryShadow = entryGo.AddComponent<Shadow>();
-                entryShadow.effectColor = new Color(0f, 0f, 0f, 0.3f);
-                entryShadow.effectDistance = new Vector2(2, -2);
+                
+                var entryOutline = entryGo.AddComponent<Outline>();
+                entryOutline.effectColor = new Color(0f, 0f, 0f, 0.4f);
+                entryOutline.effectDistance = new Vector2(1, -1);
+
                 var h = entryGo.AddComponent<HorizontalLayoutGroup>();
                 h.childControlHeight = true;
                 h.childControlWidth = false;
                 h.childForceExpandHeight = false;
                 h.childForceExpandWidth = false;
                 h.spacing = 12f;
-                h.padding = new RectOffset(10, 10, 8, 8);
+                h.padding = new RectOffset(12, 12, 10, 10);
                 h.childAlignment = TextAnchor.MiddleLeft;
                 entryGo.AddComponent<RectMask2D>();
                 var entryLE = entryGo.AddComponent<LayoutElement>();
-                entryLE.minHeight = 80f;
+                entryLE.minHeight = 84f;
                 entryLE.preferredHeight = 96f;
 
                 var iconGo = new GameObject("Icon");
                 iconGo.transform.SetParent(entryGo.transform, false);
                 var iconRt = iconGo.AddComponent<RectTransform>();
-                iconRt.sizeDelta = new Vector2(48, 48);
+                iconRt.sizeDelta = new Vector2(56, 56);
                 iconImg = iconGo.AddComponent<Image>();
                 iconImg.preserveAspect = true;
                 var iconLE = iconGo.AddComponent<LayoutElement>();
-                iconLE.minWidth = 48f;
-                iconLE.preferredWidth = 48f;
+                iconLE.minWidth = 56f;
+                iconLE.preferredWidth = 56f;
+                
+                // Icon border
+                var iconBorder = iconGo.AddComponent<Outline>();
+                iconBorder.effectColor = new Color(1f, 1f, 1f, 0.1f);
+                iconBorder.effectDistance = new Vector2(1, 1);
 
                 var textContainer = new GameObject("TextContainer");
                 textContainer.transform.SetParent(entryGo.transform, false);
@@ -573,7 +632,7 @@ namespace DailyQuests
                 textVlg.childControlWidth = true;
                 textVlg.childForceExpandHeight = false;
                 textVlg.childForceExpandWidth = true;
-                textVlg.spacing = 4f;
+                textVlg.spacing = 6f;
                 textVlg.childAlignment = TextAnchor.UpperLeft;
                 var textLE = textContainer.AddComponent<LayoutElement>();
                 textLE.flexibleWidth = 1f;
@@ -585,7 +644,7 @@ namespace DailyQuests
                 topHlg.childControlWidth = false;
                 topHlg.childForceExpandHeight = false;
                 topHlg.childForceExpandWidth = false;
-                topHlg.spacing = 8f;
+                topHlg.spacing = 10f;
                 topHlg.childAlignment = TextAnchor.MiddleLeft;
 
                 nameText = Object.Instantiate(GameplayDataSettings.UIStyle.TemplateTextUGUI);
@@ -593,11 +652,11 @@ namespace DailyQuests
                 nameText.name = "NameText";
                 nameText.alignment = TextAlignmentOptions.MidlineLeft;
                 nameText.enableWordWrapping = true;
-                nameText.fontSize = 18f;
+                nameText.fontSize = 20f;
                 nameText.fontStyle = FontStyles.Bold;
                 var nameLE = nameText.gameObject.AddComponent<LayoutElement>();
-                nameLE.minWidth = 200f;
-                nameLE.preferredWidth = 280f;
+                nameLE.minWidth = 180f;
+                nameLE.preferredWidth = 260f;
                 nameLE.flexibleWidth = 1f;
 
                 diffLabel = Object.Instantiate(GameplayDataSettings.UIStyle.TemplateTextUGUI);
@@ -610,9 +669,11 @@ namespace DailyQuests
                 var diffBgGo = new GameObject("DiffBg");
                 diffBgGo.transform.SetParent(topRow.transform, false);
                 var diffBgRt = diffBgGo.AddComponent<RectTransform>();
-                diffBgRt.sizeDelta = new Vector2(50, 22);
+                diffBgRt.sizeDelta = new Vector2(56, 24);
                 var diffBgImg = diffBgGo.AddComponent<Image>();
                 diffBgImg.color = new Color(0.2f, 0.2f, 0.2f, 0.8f);
+                var diffBgOutline = diffBgGo.AddComponent<Outline>();
+                diffBgOutline.effectColor = new Color(0f,0f,0f,0.5f);
                 diffLabel.transform.SetParent(diffBgGo.transform, false);
                 diffLabel.rectTransform.anchorMin = Vector2.zero;
                 diffLabel.rectTransform.anchorMax = Vector2.one;
@@ -622,7 +683,7 @@ namespace DailyQuests
                 var progressContainer = new GameObject("ProgressContainer");
                 progressContainer.transform.SetParent(textContainer.transform, false);
                 var progressRt = progressContainer.AddComponent<RectTransform>();
-                progressRt.sizeDelta = new Vector2(0, 12);
+                progressRt.sizeDelta = new Vector2(0, 10);
 
                 var progressBarBgGo = new GameObject("ProgressBarBg");
                 progressBarBgGo.transform.SetParent(progressContainer.transform, false);
@@ -632,7 +693,7 @@ namespace DailyQuests
                 progressBgRt.offsetMin = Vector2.zero;
                 progressBgRt.offsetMax = Vector2.zero;
                 progressBarBg = progressBarBgGo.AddComponent<Image>();
-                progressBarBg.color = new Color(0.1f, 0.1f, 0.15f, 0.8f);
+                progressBarBg.color = new Color(0.1f, 0.1f, 0.15f, 0.6f);
 
                 var progressBarFillGo = new GameObject("Fill");
                 progressBarFillGo.transform.SetParent(progressBarBgGo.transform, false);
@@ -745,13 +806,14 @@ namespace DailyQuests
             RefreshList();
         }
 
-        private Button CreateBottomButton(GameObject parent, string text)
+        private Button CreateBottomButton(GameObject parent, string text, Color baseColor)
         {
             var go = new GameObject(text);
             go.transform.SetParent(parent.transform, false);
             var btn = go.AddComponent<Button>();
             var img = go.AddComponent<Image>();
-            img.color = new Color(1f, 1f, 1f, 0.15f);
+            img.color = baseColor;
+            
             var rt = go.GetComponent<RectTransform>();
             rt.sizeDelta = new Vector2(0, 0);
             var le = go.AddComponent<LayoutElement>();
@@ -762,26 +824,27 @@ namespace DailyQuests
             shadow.effectDistance = new Vector2(2, -2);
             
             var outline = go.AddComponent<Outline>();
-            outline.effectColor = new Color(0.5f, 0.5f, 0.6f, 0.3f);
+            outline.effectColor = new Color(0f, 0f, 0f, 0.3f);
             outline.effectDistance = new Vector2(1, 1);
             
             var label = Object.Instantiate(GameplayDataSettings.UIStyle.TemplateTextUGUI);
             label.transform.SetParent(go.transform, false);
             label.text = text;
             label.alignment = TextAlignmentOptions.Center;
-            label.fontSize = 22f;
+            label.fontSize = 20f;
             label.fontStyle = FontStyles.Bold;
-            label.rectTransform.anchorMin = new Vector2(0, 0);
-            label.rectTransform.anchorMax = new Vector2(1, 1);
+            label.color = Color.white;
+            label.rectTransform.anchorMin = Vector2.zero;
+            label.rectTransform.anchorMax = Vector2.one;
             label.rectTransform.offsetMin = Vector2.zero;
             label.rectTransform.offsetMax = Vector2.zero;
             
             var colors = btn.colors;
-            colors.normalColor = new Color(1f, 1f, 1f, 0.15f);
-            colors.highlightedColor = new Color(1f, 1f, 1f, 0.25f);
-            colors.pressedColor = new Color(1f, 1f, 1f, 0.35f);
-            colors.selectedColor = new Color(1f, 1f, 1f, 0.25f);
-            colors.disabledColor = new Color(0.5f, 0.5f, 0.5f, 0.3f);
+            colors.normalColor = baseColor;
+            colors.highlightedColor = new Color(baseColor.r * 1.2f, baseColor.g * 1.2f, baseColor.b * 1.2f, 1f);
+            colors.pressedColor = new Color(baseColor.r * 0.8f, baseColor.g * 0.8f, baseColor.b * 0.8f, 1f);
+            colors.selectedColor = baseColor;
+            colors.disabledColor = new Color(0.4f, 0.4f, 0.4f, 0.5f);
             btn.colors = colors;
             
             return btn;
@@ -792,12 +855,12 @@ namespace DailyQuests
             var sepGo = new GameObject("Separator");
             sepGo.transform.SetParent(parent.transform, false);
             var sepRt = sepGo.AddComponent<RectTransform>();
-            sepRt.sizeDelta = new Vector2(0, 2);
+            sepRt.sizeDelta = new Vector2(0, 1);
             var sepImg = sepGo.AddComponent<Image>();
-            sepImg.color = new Color(0.3f, 0.3f, 0.4f, 0.4f);
+            sepImg.color = new Color(0.4f, 0.4f, 0.45f, 0.2f);
             var sepLe = sepGo.AddComponent<LayoutElement>();
-            sepLe.preferredHeight = 2f;
-            sepLe.minHeight = 2f;
+            sepLe.preferredHeight = 1f;
+            sepLe.minHeight = 1f;
             return sepGo;
         }
 
@@ -858,7 +921,7 @@ namespace DailyQuests
             }
             else if (task.type == DailyTaskType.SubmitItem)
             {
-                SetBottomButtonsVisible(false, false, true, false);
+                SetBottomButtonsVisible(false, true, true, false);
             }
             else
             {

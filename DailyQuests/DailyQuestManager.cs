@@ -69,6 +69,7 @@ namespace DailyQuests
         private string lastSavedDate = string.Empty;
         private Duckov.Quests.QuestGiver jeff = null!;
         private float updateTimer = 0f;
+        private float refreshCooldown = 0f;
 
         public void Initialize()
         {
@@ -109,6 +110,8 @@ namespace DailyQuests
 
         private void Update()
         {
+            if (refreshCooldown > 0f) refreshCooldown -= Time.deltaTime;
+            
             updateTimer += Time.deltaTime;
             if (updateTimer > 60f) // 每分钟检查一次
             {
@@ -174,6 +177,13 @@ namespace DailyQuests
 
         public void RefreshUnaccepted()
         {
+            if (refreshCooldown > 0f)
+            {
+                NotificationText.Push($"刷新冷却中... {Mathf.CeilToInt(refreshCooldown)}秒");
+                return;
+            }
+            refreshCooldown = 5f;
+
             // 1. 任务刷新死锁修复：如果列表已满，允许放弃过期的任务
             var keep = tasks.Where(t => t.accepted || (t.finished && !t.rewardClaimed)).ToList();
             
@@ -522,7 +532,7 @@ namespace DailyQuests
                         else
                         {
                             subDiff = rollSubmit < 25 ? DailyTaskDifficulty.Easy : (rollSubmit < 55 ? DailyTaskDifficulty.Normal : (rollSubmit < 85 ? DailyTaskDifficulty.Hard : DailyTaskDifficulty.Epic));
-                            submitAmount = subDiff == DailyTaskDifficulty.Easy ? UnityEngine.Random.Range(2, 6) : (subDiff == DailyTaskDifficulty.Normal ? UnityEngine.Random.Range(6, 10) : (subDiff == DailyTaskDifficulty.Hard ? UnityEngine.Random.Range(10, 15) : UnityEngine.Random.Range(15, 26)));
+                            submitAmount = subDiff == DailyTaskDifficulty.Easy ? UnityEngine.Random.Range(1, 3) : (subDiff == DailyTaskDifficulty.Normal ? UnityEngine.Random.Range(3, 5) : (subDiff == DailyTaskDifficulty.Hard ? UnityEngine.Random.Range(5, 7) : UnityEngine.Random.Range(7, 9)));
                         }
                         
                         var submitTask = new DailyTask
@@ -565,7 +575,7 @@ namespace DailyQuests
                 int amount;
                 if (isBoss)
                 {
-                    amount = UnityEngine.Random.Range(3, 10);
+                    amount = UnityEngine.Random.Range(1, 5);
                 }
                 else
                 {
@@ -631,7 +641,7 @@ namespace DailyQuests
                 
                 if (isBoss)
                 {
-                    amount = UnityEngine.Random.Range(3, 9);
+                    amount = UnityEngine.Random.Range(1, 5);
                     diff = DailyTaskDifficulty.Epic;
                 }
                 else
@@ -799,10 +809,10 @@ namespace DailyQuests
                     {
                         switch (t.difficulty)
                         {
-                            case DailyTaskDifficulty.Easy: t.requiredAmount = Mathf.Clamp(t.requiredAmount, 2, 5); break;
-                            case DailyTaskDifficulty.Normal: t.requiredAmount = Mathf.Clamp(t.requiredAmount, 6, 9); break;
-                            case DailyTaskDifficulty.Hard: t.requiredAmount = Mathf.Clamp(t.requiredAmount, 10, 14); break;
-                            case DailyTaskDifficulty.Epic: t.requiredAmount = Mathf.Max(15, t.requiredAmount); break;
+                            case DailyTaskDifficulty.Easy: t.requiredAmount = Mathf.Clamp(t.requiredAmount, 1, 3); break;
+                            case DailyTaskDifficulty.Normal: t.requiredAmount = Mathf.Clamp(t.requiredAmount, 3, 5); break;
+                            case DailyTaskDifficulty.Hard: t.requiredAmount = Mathf.Clamp(t.requiredAmount, 5, 7); break;
+                            case DailyTaskDifficulty.Epic: t.requiredAmount = Mathf.Clamp(t.requiredAmount, 7, 8); break;
                         }
                     }
                     {
@@ -854,9 +864,9 @@ namespace DailyQuests
                     }
                     else
                     {
-                        if (t.requiredAmount <= 5) t.difficulty = DailyTaskDifficulty.Easy;
-                        else if (t.requiredAmount <= 9) t.difficulty = DailyTaskDifficulty.Normal;
-                        else if (t.requiredAmount <= 14) t.difficulty = DailyTaskDifficulty.Hard;
+                        if (t.requiredAmount <= 2) t.difficulty = DailyTaskDifficulty.Easy;
+                        else if (t.requiredAmount <= 4) t.difficulty = DailyTaskDifficulty.Normal;
+                        else if (t.requiredAmount <= 6) t.difficulty = DailyTaskDifficulty.Hard;
                         else t.difficulty = DailyTaskDifficulty.Epic;
                     }
                     break;
@@ -1040,9 +1050,20 @@ namespace DailyQuests
                 );
             }
 
+            if (items.Count == 0)
+            {
+                var meta = ItemAssetsCollection.GetMetaData(t.targetItemId);
+                CharacterMainControl.Main?.PopText($"背包中未找到 {meta.DisplayName}", 12f);
+                return;
+            }
+
             int need = t.requiredAmount - t.progress;
             int consumed = 0;
-            foreach (var item in items)
+            
+            // 复制一个列表用于迭代，避免在修改数量或销毁物品时出现集合被修改的异常
+            var itemsToProcess = items.ToList();
+            
+            foreach (var item in itemsToProcess)
             {
                 if (consumed >= need) break;
                 int take = Math.Min(item.StackCount, need - consumed);
@@ -1052,11 +1073,13 @@ namespace DailyQuests
                 }
                 else
                 {
+                    // 彻底销毁物品，防止留下空壳导致商人购买出错
                     item.Detach();
                     item.DestroyTree();
                 }
                 consumed += take;
             }
+            
             t.progress += consumed;
             if (t.progress >= t.requiredAmount) Complete(t);
             Save();

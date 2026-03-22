@@ -64,9 +64,5 @@ namespace DailyQuests
             
             return string.Equals(active.DisplayName, TargetMerchantName, StringComparison.Ordinal);
         }
-
-        
-
-        
     }
 }
