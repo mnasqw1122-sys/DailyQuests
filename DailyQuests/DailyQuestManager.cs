@@ -1108,118 +1108,288 @@ namespace DailyQuests
             catch {}
         }
 
+        /// <summary>
+        /// 物品稀有度等级
+        /// </summary>
+        private enum ItemRarity
+        {
+            Common,
+            Rare,
+            RareAmmo
+        }
+
+        /// <summary>
+        /// 获取物品的稀有度等级
+        /// </summary>
+        private ItemRarity GetItemRarity(int typeId)
+        {
+            if (DailyQuestConfig.HighValueRewardItemIds.Contains(typeId))
+                return ItemRarity.Rare;
+            if (DailyQuestConfig.HighValueAmmoIds.Contains(typeId))
+                return ItemRarity.RareAmmo;
+            return ItemRarity.Common;
+        }
+
+        /// <summary>
+        /// 根据难度获取稀有物品掉落概率（0~1）
+        /// </summary>
+        private float GetRareItemChance(DailyTaskDifficulty diff)
+        {
+            switch (diff)
+            {
+                case DailyTaskDifficulty.Easy: return 0.0f;
+                case DailyTaskDifficulty.Normal: return 0.2f;
+                case DailyTaskDifficulty.Hard: return 0.45f;
+                case DailyTaskDifficulty.Epic: return 0.8f;
+                default: return 0.0f;
+            }
+        }
+
+        /// <summary>
+        /// 根据难度获取奖励物品数量范围
+        /// </summary>
+        private (int min, int max) GetRewardItemCountRange(DailyTaskDifficulty diff)
+        {
+            switch (diff)
+            {
+                case DailyTaskDifficulty.Easy: return (1, 2);
+                case DailyTaskDifficulty.Normal: return (1, 3);
+                case DailyTaskDifficulty.Hard: return (2, 4);
+                case DailyTaskDifficulty.Epic: return (3, 5);
+                default: return (1, 2);
+            }
+        }
+
+        /// <summary>
+        /// 根据难度和物品稀有度分配任务奖励
+        /// </summary>
         private void AssignRewardPreview(DailyTask t)
+        {
+            AssignCashAndExpReward(t);
+            AssignItemRewards(t);
+            BuildRewardPreviewText(t);
+        }
+
+        /// <summary>
+        /// 根据难度分配现金和经验奖励
+        /// </summary>
+        private void AssignCashAndExpReward(DailyTask t)
         {
             if (t.type == DailyTaskType.SpendCashAtMerchant)
             {
                 t.rewardCashAmount = UnityEngine.Random.Range(500, 3000);
                 t.rewardExpAmount = UnityEngine.Random.Range(200, 1500);
-            }
-            else
-            {
-                switch (t.difficulty)
-                {
-                    case DailyTaskDifficulty.Easy:
-                        t.rewardCashAmount = UnityEngine.Random.Range(2000, 5001);
-                        t.rewardExpAmount = UnityEngine.Random.Range(1000, 2101);
-                        break;
-                    case DailyTaskDifficulty.Normal:
-                        t.rewardCashAmount = UnityEngine.Random.Range(5000, 9001);
-                        t.rewardExpAmount = UnityEngine.Random.Range(2200, 3001);
-                        break;
-                    case DailyTaskDifficulty.Hard:
-                        t.rewardCashAmount = UnityEngine.Random.Range(11000, 19001);
-                        t.rewardExpAmount = UnityEngine.Random.Range(3100, 3801);
-                        break;
-                    case DailyTaskDifficulty.Epic:
-                        t.rewardCashAmount = UnityEngine.Random.Range(21000, 29001);
-                        t.rewardExpAmount = UnityEngine.Random.Range(4100, 4801);
-                        break;
-                    default:
-                        t.rewardCashAmount = UnityEngine.Random.Range(5000, 9001);
-                        t.rewardExpAmount = UnityEngine.Random.Range(2200, 3001);
-                        break;
-                }
-            }
-
-            var unlocked = GameplayDataSettings.Economy.UnlockedItemByDefault;
-            var items = new List<DailyTask.RewardItem>();
-            var rewardPool = new List<int>(DailyQuestConfig.AllowedRewardItemIds);
-            if (t.difficulty != DailyTaskDifficulty.Epic)
-            {
-                rewardPool.RemoveAll(id => DailyQuestConfig.HighValueRewardItemIds.Contains(id) || DailyQuestConfig.HighValueAmmoIds.Contains(id));
-            }
-            if (rewardPool.Count == 0 && unlocked != null) rewardPool.AddRange(unlocked);
-            int itemCandidates = rewardPool.Count;
-            int bonusVariety = t.difficulty == DailyTaskDifficulty.Hard ? 1 : (t.difficulty == DailyTaskDifficulty.Epic ? 2 : 0);
-            int count = UnityEngine.Random.Range(1, 4) + bonusVariety;
-            for (int i = 0; i < count; i++)
-            {
-                int typeId = 0;
-                if (itemCandidates > 0)
-                {
-                    int idx = UnityEngine.Random.Range(0, itemCandidates);
-                    typeId = rewardPool[idx];
-                }
-                else if (t.targetItemId > 0)
-                {
-                    typeId = t.targetItemId;
-                }
-                else
-                {
-                    var owned = ItemUtilities.FindAllBelongsToPlayer(e => e != null);
-                    if (owned.Count > 0)
-                    {
-                        int pick = UnityEngine.Random.Range(0, owned.Count);
-                        typeId = owned[pick].TypeID;
-                    }
-                }
-                int c;
-                if (DailyQuestConfig.AllowedAmmoIds.Contains(typeId) && !DailyQuestConfig.HighValueAmmoIds.Contains(typeId))
-                {
-                    c = PickNonHighValueAmmoCount(t.difficulty);
-                }
-                else if (DailyQuestConfig.HighValueAmmoIds.Contains(typeId))
-                {
-                    c = 30;
-                }
-                else if (DailyQuestConfig.HighValueRewardItemIds.Contains(typeId))
-                {
-                    c = 1;
-                }
-                else
-                {
-                    int baseCount = UnityEngine.Random.Range(1, 4);
-                    float mult = GetDifficultyMultiplier(t.difficulty);
-                    c = Mathf.Clamp(Mathf.RoundToInt(baseCount * mult), 1, 10);
-                }
-                if (typeId > 0)
-                {
-                    items.Add(new DailyTask.RewardItem { typeId = typeId, count = c });
-                }
-            }
-            t.rewardItems = items;
-            
-            if (t.type == DailyTaskType.SpendCashAtMerchant)
-            {
                 float rMult = GetDifficultyMultiplier(t.difficulty);
                 t.rewardCashAmount = Mathf.RoundToInt(t.rewardCashAmount * rMult);
                 t.rewardExpAmount = Mathf.RoundToInt(t.rewardExpAmount * rMult);
-            }
-
-            if (t.type == DailyTaskType.SpendCashAtMerchant)
-            {
                 t.rewardCashAmount = Mathf.Min(t.rewardCashAmount, Mathf.RoundToInt(t.requiredAmount * 0.35f));
                 t.rewardExpAmount = Mathf.Min(t.rewardExpAmount, Mathf.RoundToInt(t.requiredAmount * 0.5f));
+                return;
             }
 
+            switch (t.difficulty)
+            {
+                case DailyTaskDifficulty.Easy:
+                    t.rewardCashAmount = UnityEngine.Random.Range(2000, 5001);
+                    t.rewardExpAmount = UnityEngine.Random.Range(1000, 2101);
+                    break;
+                case DailyTaskDifficulty.Normal:
+                    t.rewardCashAmount = UnityEngine.Random.Range(6000, 12001);
+                    t.rewardExpAmount = UnityEngine.Random.Range(2500, 4001);
+                    break;
+                case DailyTaskDifficulty.Hard:
+                    t.rewardCashAmount = UnityEngine.Random.Range(15000, 25001);
+                    t.rewardExpAmount = UnityEngine.Random.Range(4500, 6501);
+                    break;
+                case DailyTaskDifficulty.Epic:
+                    t.rewardCashAmount = UnityEngine.Random.Range(30000, 50001);
+                    t.rewardExpAmount = UnityEngine.Random.Range(8000, 12001);
+                    break;
+                default:
+                    t.rewardCashAmount = UnityEngine.Random.Range(6000, 12001);
+                    t.rewardExpAmount = UnityEngine.Random.Range(2500, 4001);
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// 根据难度和稀有度分配物品奖励
+        /// </summary>
+        private void AssignItemRewards(DailyTask t)
+        {
+            var items = new List<DailyTask.RewardItem>();
+
+            var commonPool = BuildCommonPool();
+            var rarePool = BuildRarePool();
+            var rareAmmoPool = BuildRareAmmoPool();
+
+            var (minCount, maxCount) = GetRewardItemCountRange(t.difficulty);
+            int totalCount = UnityEngine.Random.Range(minCount, maxCount + 1);
+
+            float rareChance = GetRareItemChance(t.difficulty);
+
+            bool hasRareItem = false;
+
+            for (int i = 0; i < totalCount; i++)
+            {
+                bool forceRare = (t.difficulty == DailyTaskDifficulty.Epic && !hasRareItem && i == totalCount - 1);
+                bool giveRare = forceRare || (rarePool.Count + rareAmmoPool.Count > 0 && UnityEngine.Random.Range(0f, 1f) < rareChance);
+
+                if (giveRare && (rarePool.Count + rareAmmoPool.Count > 0))
+                {
+                    var ri = PickRareReward(rarePool, rareAmmoPool, t.difficulty);
+                    if (ri != null)
+                    {
+                        items.Add(ri.Value);
+                        hasRareItem = true;
+                        continue;
+                    }
+                }
+
+                var commonReward = PickCommonReward(commonPool, t);
+                if (commonReward != null)
+                {
+                    items.Add(commonReward.Value);
+                }
+            }
+
+            t.rewardItems = items;
+        }
+
+        /// <summary>
+        /// 构建普通物品奖励池
+        /// </summary>
+        private List<int> BuildCommonPool()
+        {
+            var pool = new List<int>(DailyQuestConfig.AllowedRewardItemIds);
+            pool.RemoveAll(id => DailyQuestConfig.HighValueRewardItemIds.Contains(id) || DailyQuestConfig.HighValueAmmoIds.Contains(id));
+            if (pool.Count == 0 && GameplayDataSettings.Economy.UnlockedItemByDefault != null)
+                pool.AddRange(GameplayDataSettings.Economy.UnlockedItemByDefault);
+            return pool;
+        }
+
+        /// <summary>
+        /// 构建稀有物品奖励池（高价值武器/护甲/钥匙等）
+        /// </summary>
+        private List<int> BuildRarePool()
+        {
+            var pool = new List<int>(DailyQuestConfig.HighValueRewardItemIds);
+            pool.RemoveAll(id => DailyQuestConfig.HighValueAmmoIds.Contains(id));
+            return pool;
+        }
+
+        /// <summary>
+        /// 构建稀有弹药奖励池
+        /// </summary>
+        private List<int> BuildRareAmmoPool()
+        {
+            return new List<int>(DailyQuestConfig.HighValueAmmoIds);
+        }
+
+        /// <summary>
+        /// 从稀有池中选取一个奖励物品
+        /// </summary>
+        private DailyTask.RewardItem? PickRareReward(List<int> rarePool, List<int> rareAmmoPool, DailyTaskDifficulty diff)
+        {
+            bool pickAmmo = rareAmmoPool.Count > 0 && (rarePool.Count == 0 || UnityEngine.Random.Range(0, 2) == 0);
+
+            if (pickAmmo)
+            {
+                int idx = UnityEngine.Random.Range(0, rareAmmoPool.Count);
+                int typeId = rareAmmoPool[idx];
+                int count = PickHighValueAmmoCount(diff);
+                return new DailyTask.RewardItem { typeId = typeId, count = count };
+            }
+            else if (rarePool.Count > 0)
+            {
+                int idx = UnityEngine.Random.Range(0, rarePool.Count);
+                int typeId = rarePool[idx];
+                int count = DailyQuestConfig.AllowedAmmoIds.Contains(typeId)
+                    ? PickNonHighValueAmmoCount(diff)
+                    : 1;
+                return new DailyTask.RewardItem { typeId = typeId, count = count };
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// 从普通池中选取一个奖励物品
+        /// </summary>
+        private DailyTask.RewardItem? PickCommonReward(List<int> commonPool, DailyTask t)
+        {
+            int typeId = 0;
+            if (commonPool.Count > 0)
+            {
+                int idx = UnityEngine.Random.Range(0, commonPool.Count);
+                typeId = commonPool[idx];
+            }
+            else if (t.targetItemId > 0)
+            {
+                typeId = t.targetItemId;
+            }
+            else
+            {
+                var owned = ItemUtilities.FindAllBelongsToPlayer(e => e != null);
+                if (owned.Count > 0)
+                {
+                    int pick = UnityEngine.Random.Range(0, owned.Count);
+                    typeId = owned[pick].TypeID;
+                }
+            }
+
+            if (typeId <= 0) return null;
+
+            int c;
+            if (DailyQuestConfig.AllowedAmmoIds.Contains(typeId) && !DailyQuestConfig.HighValueAmmoIds.Contains(typeId))
+            {
+                c = PickNonHighValueAmmoCount(t.difficulty);
+            }
+            else
+            {
+                int baseCount = UnityEngine.Random.Range(1, 4);
+                float mult = GetDifficultyMultiplier(t.difficulty);
+                c = Mathf.Clamp(Mathf.RoundToInt(baseCount * mult), 1, 10);
+            }
+
+            return new DailyTask.RewardItem { typeId = typeId, count = c };
+        }
+
+        /// <summary>
+        /// 根据难度选取高价值弹药数量
+        /// </summary>
+        private int PickHighValueAmmoCount(DailyTaskDifficulty d)
+        {
+            switch (d)
+            {
+                case DailyTaskDifficulty.Normal:
+                    return UnityEngine.Random.Range(15, 25);
+                case DailyTaskDifficulty.Hard:
+                    return UnityEngine.Random.Range(20, 35);
+                case DailyTaskDifficulty.Epic:
+                    return UnityEngine.Random.Range(30, 50);
+                default:
+                    return UnityEngine.Random.Range(15, 25);
+            }
+        }
+
+        /// <summary>
+        /// 构建奖励预览文本
+        /// </summary>
+        private void BuildRewardPreviewText(DailyTask t)
+        {
             var sb = new System.Text.StringBuilder();
             sb.Append($"现金 {t.rewardCashAmount}，经验 {t.rewardExpAmount}");
-            for (int i = 0; i < items.Count; i++)
+            if (t.rewardItems != null)
             {
-                var meta = ItemAssetsCollection.GetMetaData(items[i].typeId);
-                sb.Append('\n');
-                sb.Append($"物品 {meta.DisplayName} x{items[i].count}");
+                for (int i = 0; i < t.rewardItems.Count; i++)
+                {
+                    var meta = ItemAssetsCollection.GetMetaData(t.rewardItems[i].typeId);
+                    sb.Append('\n');
+                    var rarity = GetItemRarity(t.rewardItems[i].typeId);
+                    string rarityTag = rarity == ItemRarity.Rare ? "★" : (rarity == ItemRarity.RareAmmo ? "◆" : "");
+                    sb.Append($"物品 {rarityTag}{meta.DisplayName} x{t.rewardItems[i].count}");
+                }
             }
             t.rewardPreviewText = sb.ToString();
         }
@@ -1268,24 +1438,40 @@ namespace DailyQuests
             }
         }
 
+        /// <summary>
+        /// 发放任务奖励：现金和经验即时到账，物品奖励按最大堆叠数分批发送到马蜂自提点（仓库缓冲区）
+        /// </summary>
         private void GrantReward(DailyTask t)
         {
+            // 发放现金奖励（同样按 MaxStackCount 分批防截断）
             if (t.rewardCashAmount > 0)
             {
                 int cashId = GameplayDataSettings.ItemAssets.CashItemTypeID;
-                var cash = ItemAssetsCollection.InstantiateSync(cashId);
-                if (cash != null)
+                var cashMeta = ItemAssetsCollection.GetMetaData(cashId);
+                int cashMaxStack = cashMeta.maxStackCount > 0 ? cashMeta.maxStackCount : 1;
+                int cashRemaining = t.rewardCashAmount;
+
+                while (cashRemaining > 0)
                 {
-                    cash.StackCount = t.rewardCashAmount;
+                    int batch = Mathf.Min(cashRemaining, cashMaxStack);
+                    cashRemaining -= batch;
+
+                    var cash = ItemAssetsCollection.InstantiateSync(cashId);
+                    if (cash == null) continue;
+                    if (cash.Stackable && batch > 1) cash.StackCount = batch;
                     ItemUtilities.SendToPlayer(cash, false, true);
-                    NotificationText.Push($"奖励 现金 {t.rewardCashAmount}");
                 }
+                NotificationText.Push($"奖励 现金 {t.rewardCashAmount}");
             }
+
+            // 发放经验奖励
             if (t.rewardExpAmount > 0)
             {
                 EXPManager.AddExp(t.rewardExpAmount);
                 NotificationText.Push($"奖励 经验 {t.rewardExpAmount}");
             }
+
+            // 构建物品奖励列表（兼容旧版字段）
             var list = t.rewardItems;
             if (list == null || list.Count == 0)
             {
@@ -1297,37 +1483,37 @@ namespace DailyQuests
                 #pragma warning restore 618
             }
             var safeList = list ?? new List<DailyTask.RewardItem>();
+
             for (int i = 0; i < safeList.Count; i++)
             {
                 int typeId = safeList[i].typeId;
                 int count = Mathf.Max(1, safeList[i].count);
-                
+
                 // 在实例化之前验证物品是否存在
                 var meta = ItemAssetsCollection.GetMetaData(typeId);
                 if (meta.id == 0) continue;
 
-                var first = ItemAssetsCollection.InstantiateSync(typeId);
-                if (first == null) continue;
+                // 获取该物品的最大堆叠数（从元数据或实例化后的物品获取）
+                int maxStack = meta.maxStackCount > 0 ? meta.maxStackCount : 1;
+                int remaining = count;
 
-                if (first.Stackable)
+                while (remaining > 0)
                 {
-                    first.StackCount = count;
-                    ItemUtilities.SendToPlayer(first, false, true);
-                }
-                else
-                {
-                    first.StackCount = 1;
-                    ItemUtilities.SendToPlayer(first, false, true);
-                    for (int k = 1; k < count; k++)
+                    // 按 MaxStackCount 分批创建，防止 StackCount 被底层截断导致数量丢失
+                    int batchCount = Mathf.Min(remaining, maxStack);
+                    remaining -= batchCount;
+
+                    var item = ItemAssetsCollection.InstantiateSync(typeId);
+                    if (item == null) continue;
+
+                    if (item.Stackable && batchCount > 1)
                     {
-                        var extra = ItemAssetsCollection.InstantiateSync(typeId);
-                        if (extra != null)
-                        {
-                            extra.StackCount = 1;
-                            ItemUtilities.SendToPlayer(extra, false, true);
-                        }
+                        item.StackCount = batchCount;
                     }
+                    // 直接发送到仓库缓冲区（马蜂自提点），绕过背包容量限制
+                    ItemUtilities.SendToPlayerStorage(item, directToBuffer: true);
                 }
+
                 NotificationText.Push($"奖励 物品 {meta.DisplayName} x{count}");
             }
         }

@@ -123,8 +123,26 @@ namespace DailyQuests
             base.OnDestroy();
         }
 
+        /// <summary>
+        /// 检查当前是否可以安全打开每日任务面板
+        /// </summary>
+        public static bool CanOpen()
+        {
+            if (View.ActiveView is ClosureView)
+                return false;
+            if (SceneLoader.IsSceneLoading)
+                return false;
+            return true;
+        }
+
         protected override void OnOpen()
         {
+            if (!CanOpen())
+            {
+                Close();
+                NotificationText.Push("当前无法打开任务面板");
+                return;
+            }
             base.OnOpen();
             gameObject.SetActive(true);
             RefreshList();
@@ -259,7 +277,7 @@ namespace DailyQuests
             scrollRt.offsetMax = new Vector2(-4, -4);
             scroll = scrollGo.AddComponent<ScrollRect>();
             scroll.horizontal = false;
-            scroll.scrollSensitivity = 20f;
+            scroll.scrollSensitivity = 2f;
             
             var viewportGo = new GameObject("Viewport");
             viewportGo.transform.SetParent(scrollGo.transform, false);
@@ -277,6 +295,7 @@ namespace DailyQuests
             listParent.anchorMin = new Vector2(0, 1);
             listParent.anchorMax = new Vector2(1, 1);
             listParent.anchoredPosition = Vector2.zero;
+            listParent.sizeDelta = new Vector2(0, 0);
             
             var vlg = contentGo.AddComponent<VerticalLayoutGroup>();
             vlg.childControlHeight = true;
@@ -303,7 +322,7 @@ namespace DailyQuests
             
             var rightScroll = rightScrollGo.AddComponent<ScrollRect>();
             rightScroll.horizontal = false;
-            rightScroll.scrollSensitivity = 20f;
+            rightScroll.scrollSensitivity = 2f;
             
             var rightViewportGo = new GameObject("Viewport");
             rightViewportGo.transform.SetParent(rightScrollGo.transform, false);
@@ -321,6 +340,7 @@ namespace DailyQuests
             rightContent.anchorMax = new Vector2(1, 1);
             rightContent.pivot = new Vector2(0, 1);
             rightContent.anchoredPosition = Vector2.zero;
+            rightContent.sizeDelta = new Vector2(0, 0);
             
             var vlg2 = rcGo.AddComponent<VerticalLayoutGroup>();
             vlg2.childControlHeight = true;
@@ -338,18 +358,10 @@ namespace DailyQuests
             rightScroll.content = rightContent;
 
             // ... Title ...
-            var titleContainer = new GameObject("TitleContainer");
-            titleContainer.transform.SetParent(rcGo.transform, false);
-            var titleRt = titleContainer.AddComponent<RectTransform>();
-            var titleLE = titleContainer.AddComponent<LayoutElement>();
-            titleLE.minHeight = 40f;
-            
             var dt = Object.Instantiate(GameplayDataSettings.UIStyle.TemplateTextUGUI);
-            dt.transform.SetParent(titleContainer.transform, false);
-            dt.rectTransform.anchorMin = Vector2.zero;
-            dt.rectTransform.anchorMax = Vector2.one;
-            dt.rectTransform.offsetMin = Vector2.zero;
-            dt.rectTransform.offsetMax = Vector2.zero;
+            dt.transform.SetParent(rcGo.transform, false);
+            var titleLE = dt.gameObject.AddComponent<LayoutElement>();
+            titleLE.minHeight = 40f;
             dt.enableWordWrapping = true;
             dt.fontSize = 28f;
             dt.fontStyle = FontStyles.Bold;
@@ -361,17 +373,10 @@ namespace DailyQuests
             CreateSeparator(rcGo);
 
             // ... Description ...
-            var descContainer = new GameObject("DescContainer");
-            descContainer.transform.SetParent(rcGo.transform, false);
-            var descLE = descContainer.AddComponent<LayoutElement>();
-            descLE.minHeight = 60f;
-            
             var dd = Object.Instantiate(GameplayDataSettings.UIStyle.TemplateTextUGUI);
-            dd.transform.SetParent(descContainer.transform, false);
-            dd.rectTransform.anchorMin = Vector2.zero;
-            dd.rectTransform.anchorMax = Vector2.one;
-            dd.rectTransform.offsetMin = Vector2.zero;
-            dd.rectTransform.offsetMax = Vector2.zero;
+            dd.transform.SetParent(rcGo.transform, false);
+            var descLE = dd.gameObject.AddComponent<LayoutElement>();
+            descLE.minHeight = 60f;
             dd.enableWordWrapping = true;
             dd.fontSize = 20f;
             dd.alignment = TextAlignmentOptions.TopLeft;
@@ -379,17 +384,10 @@ namespace DailyQuests
             detailDesc = dd.rectTransform;
 
             // ... Target ...
-            var targetContainer = new GameObject("TargetContainer");
-            targetContainer.transform.SetParent(rcGo.transform, false);
-            var targetLE = targetContainer.AddComponent<LayoutElement>();
-            targetLE.minHeight = 30f;
-            
             var tg = Object.Instantiate(GameplayDataSettings.UIStyle.TemplateTextUGUI);
-            tg.transform.SetParent(targetContainer.transform, false);
-            tg.rectTransform.anchorMin = Vector2.zero;
-            tg.rectTransform.anchorMax = Vector2.one;
-            tg.rectTransform.offsetMin = Vector2.zero;
-            tg.rectTransform.offsetMax = Vector2.zero;
+            tg.transform.SetParent(rcGo.transform, false);
+            var targetLE = tg.gameObject.AddComponent<LayoutElement>();
+            targetLE.minHeight = 30f;
             tg.enableWordWrapping = true;
             tg.fontSize = 20f;
             tg.alignment = TextAlignmentOptions.TopLeft;
@@ -448,34 +446,20 @@ namespace DailyQuests
             rewardHeader.alignment = TextAlignmentOptions.TopLeft;
 
             // ... Rewards ...
-            var rewardCashContainer = new GameObject("RewardCashContainer");
-            rewardCashContainer.transform.SetParent(rcGo.transform, false);
-            var rewardCashLE = rewardCashContainer.AddComponent<LayoutElement>();
-            rewardCashLE.minHeight = 30f;
-            
             var rwce = Object.Instantiate(GameplayDataSettings.UIStyle.TemplateTextUGUI);
-            rwce.transform.SetParent(rewardCashContainer.transform, false);
-            rwce.rectTransform.anchorMin = Vector2.zero;
-            rwce.rectTransform.anchorMax = Vector2.one;
-            rwce.rectTransform.offsetMin = Vector2.zero;
-            rwce.rectTransform.offsetMax = Vector2.zero;
+            rwce.transform.SetParent(rcGo.transform, false);
+            var rewardCashLE = rwce.gameObject.AddComponent<LayoutElement>();
+            rewardCashLE.minHeight = 30f;
+            rwce.enableWordWrapping = true;
             rwce.fontSize = 20f;
             rwce.alignment = TextAlignmentOptions.TopLeft;
             rwce.color = new Color(1f, 0.9f, 0.6f, 1f);
             detailRewardCashExp = rwce.rectTransform;
 
-            var rewardItemsContainer = new GameObject("RewardItemsContainer");
-            rewardItemsContainer.transform.SetParent(rcGo.transform, false);
-            var rewardItemsLE = rewardItemsContainer.AddComponent<LayoutElement>();
-            rewardItemsLE.minHeight = 60f;
-            rewardItemsLE.flexibleHeight = 1f;
-            
             var rwit = Object.Instantiate(GameplayDataSettings.UIStyle.TemplateTextUGUI);
-            rwit.transform.SetParent(rewardItemsContainer.transform, false);
-            rwit.rectTransform.anchorMin = Vector2.zero;
-            rwit.rectTransform.anchorMax = Vector2.one;
-            rwit.rectTransform.offsetMin = Vector2.zero;
-            rwit.rectTransform.offsetMax = Vector2.zero;
+            rwit.transform.SetParent(rcGo.transform, false);
+            var rewardItemsLE = rwit.gameObject.AddComponent<LayoutElement>();
+            rewardItemsLE.minHeight = 60f;
             rwit.enableWordWrapping = true;
             rwit.fontSize = 20f;
             rwit.alignment = TextAlignmentOptions.TopLeft;

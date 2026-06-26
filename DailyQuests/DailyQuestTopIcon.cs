@@ -108,6 +108,12 @@ namespace DailyQuests
 
         private void OpenView()
         {
+            if (!DailyQuestView.CanOpen())
+            {
+                NotificationText.Push("当前无法打开任务面板");
+                return;
+            }
+
             if (DailyQuestView.Instance != null)
             {
                 DailyQuestView.Instance.Open();

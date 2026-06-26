@@ -31,6 +31,13 @@ namespace DailyQuests
         {
             try
                 {
+                    if (!DailyQuestView.CanOpen())
+                    {
+                        interactCharacter.PopText("当前无法打开任务面板");
+                        StopInteract();
+                        return;
+                    }
+
                     // 优先使用单例实例
                     if (DailyQuestView.Instance != null)
                     {

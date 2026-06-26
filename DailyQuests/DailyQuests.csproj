@@ -9,7 +9,7 @@
     <Nullable>enable</Nullable>
     <IsMac>false</IsMac>
     <IsMac Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))'">true</IsMac>
-    <DuckovPath>d:\xiazai\Escape from Duckov</DuckovPath>
+    <DuckovPath>d:\xiazai\jli\Escape from Duckov</DuckovPath>
     <DuckovPath Condition="'$(IsMac)'">/Users/Somebody/Library/Application Support/Steam/steamapps/common/Escape from Duckov</DuckovPath>
     <SubPath>\Duckov_Data\Managed\</SubPath>
     <SubPath Condition="'$(IsMac)'">/Duckov.app/Contents/Resources/Data/Managed/</SubPath>
