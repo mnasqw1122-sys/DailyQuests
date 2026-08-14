@@ -28,55 +28,69 @@ namespace DailyQuests
 
         private void OnItemPurchased(StockShop shop, Item item)
         {
-            if (shop == null || item == null) return;
+            if (shop == null) return;
             // 安全检查：防止管理器未初始化导致报错
             if (DailyQuestManager.Instance == null) return;
+            if (!IsTargetMerchant(shop)) return;
 
-            bool isTarget = false;
-
-            // 优先检查 Key (更稳健，支持多语言)
-            if (!string.IsNullOrEmpty(shop.DisplayNameKey))
+            // 修复1：合并购买时，事件传入的 item 可能已在 AddAndMerge 中被合并销毁
+            // （StackCount 归零 → DestroyTree），因此价格计算不依赖该实例。
+            // 游戏侧 BuyTask 付款用的就是商店模板实例，这里优先用模板重算，
+            // 与游戏实际扣款公式（GetTotalRawValue × PriceFactor）完全一致。
+            int typeId = 0;
+            try
             {
-                if (shop.DisplayNameKey == TargetMerchantKey1 || shop.DisplayNameKey == TargetMerchantKey2) isTarget = true;
+                if (item != null) typeId = item.TypeID;
+            }
+            catch (Exception)
+            {
+                // 物品可能已被标记销毁，无法读取 TypeID
             }
 
-            // 后备检查 DisplayName (仅作兼容)
-            if (!isTarget && string.Equals(shop.DisplayName, TargetMerchantName, StringComparison.Ordinal))
-            {
-                isTarget = true;
-            }
+            if (typeId <= 0) return;
 
-            if (!isTarget) return;
-
-            // 修复：获取商店模板物品以正确计算价格
-            // 商店模板物品保留了正确的 StackCount，而事件传入的 item 是新创建的实例，StackCount 可能为默认值
-            var templateItem = shop.GetItemInstanceDirect(item.TypeID);
-            int price;
+            int price = 0;
+            var templateItem = shop.GetItemInstanceDirect(typeId);
             if (templateItem != null)
             {
-                // 使用商店模板物品计算价格，确保包含正确的堆叠数量
                 price = shop.ConvertPrice(templateItem, false);
             }
             else
             {
-                // 后备方案：使用事件传入的物品（可能不准确）
-                price = shop.ConvertPrice(item, false);
+                // 修复2：模板尚未缓存时（理论防御分支，BuyTask 本身要求模板已缓存），
+                // 用一次性实例重算并立即销毁，避免旧逻辑用事件物品导致价格偏低
+                var temp = ItemAssetsCollection.InstantiateSync(typeId);
+                if (temp != null && temp.TypeID == typeId)
+                {
+                    try
+                    {
+                        price = shop.ConvertPrice(temp, false);
+                    }
+                    finally
+                    {
+                        if (temp != null) Destroy(temp.gameObject);
+                    }
+                }
+                else if (item != null)
+                {
+                    price = shop.ConvertPrice(item, false);
+                }
             }
 
+            if (price <= 0) return;
             DailyQuestManager.Instance.OnMerchantPurchase(price);
         }
 
-        private bool IsTargetMerchantOpen()
+        private bool IsTargetMerchant(StockShop shop)
         {
-            var active = TradingUIUtilities.ActiveMerchant as StockShop;
-            if (active == null) return false;
-            
-            if (!string.IsNullOrEmpty(active.DisplayNameKey))
+            // 优先检查 Key (更稳健，支持多语言)
+            if (!string.IsNullOrEmpty(shop.DisplayNameKey))
             {
-                if (active.DisplayNameKey == TargetMerchantKey1 || active.DisplayNameKey == TargetMerchantKey2) return true;
+                if (shop.DisplayNameKey == TargetMerchantKey1 || shop.DisplayNameKey == TargetMerchantKey2) return true;
             }
-            
-            return string.Equals(active.DisplayName, TargetMerchantName, StringComparison.Ordinal);
+
+            // 后备检查 DisplayName (仅作兼容)
+            return string.Equals(shop.DisplayName, TargetMerchantName, StringComparison.Ordinal);
         }
     }
 }

@@ -185,7 +185,7 @@ namespace DailyQuests
 
             var titleText = Object.Instantiate(GameplayDataSettings.UIStyle.TemplateTextUGUI);
             titleText.transform.SetParent(header, false);
-            titleText.text = "每日任务系统 <size=18><color=#888888>V0.96</color></size>";
+            titleText.text = "每日任务系统 <size=18><color=#888888>V0.96.1</color></size>";
             titleText.alignment = TextAlignmentOptions.MidlineLeft;
             titleText.fontSize = 26f;
             titleText.fontStyle = FontStyles.Bold;
@@ -224,7 +224,7 @@ namespace DailyQuests
             
             var rbtnColors = btnRefresh.colors;
             rbtnColors.normalColor = new Color(1f, 1f, 1f, 1f);
-            rbtnColors.highlightedColor = new Color(1.2f, 1.2f, 1.2f, 1f);
+            rbtnColors.highlightedColor = new Color(0.95f, 0.95f, 0.95f, 1f);
             rbtnColors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 1f);
             btnRefresh.colors = rbtnColors;
             
@@ -493,6 +493,21 @@ namespace DailyQuests
             btnFinish.onClick.AddListener(() => { if (selectedTaskId > 0) { DailyQuestManager.Instance.ClaimReward(selectedTaskId); RefreshList(); ShowDetail(selectedTaskId); } });
         }
 
+        /// <summary>
+        /// 递归查找指定名称的子对象（池复用行需要，因为部分控件嵌套层级 >1）。
+        /// </summary>
+        private static Transform FindRecursive(Transform root, string name)
+        {
+            if (root == null) return null!;
+            if (root.name == name) return root;
+            for (int i = 0; i < root.childCount; i++)
+            {
+                var found = FindRecursive(root.GetChild(i), name);
+                if (found != null) return found;
+            }
+            return null!;
+        }
+
         private void ClearEntries()
         {
             foreach (var e in activeEntries)
@@ -558,14 +573,19 @@ namespace DailyQuests
                 click = entryGo.GetComponent<RowClickRelay>();
                 var iconGo = entryGo.transform.Find("Icon");
                 iconImg = iconGo != null ? iconGo.GetComponent<Image>() : null;
-                var diffLabelGo = entryGo.transform.Find("DiffLabel");
+                // 修复：DiffLabel 位于 DiffBg 之下、ProgressBarBg 位于 ProgressContainer 之下，
+                // 均非 entryGo 的直接子对象，transform.Find 会返回 null 导致复用行保留上一次的
+                // 难度文字/颜色与进度条，造成左侧难度与右侧详情不一致。改用递归查找。
+                var diffLabelGo = FindRecursive(entryGo.transform, "DiffLabel");
                 diffLabel = diffLabelGo != null ? diffLabelGo.GetComponent<TextMeshProUGUI>() : null;
-                var progressBgGo = entryGo.transform.Find("ProgressBarBg");
+                var progressBgGo = FindRecursive(entryGo.transform, "ProgressBarBg");
                 progressBarBg = progressBgGo != null ? progressBgGo.GetComponent<Image>() : null;
                 var progressFillGo = progressBgGo != null ? progressBgGo.Find("Fill") : null;
                 progressBarFill = progressFillGo != null ? progressFillGo.GetComponent<Image>() : null;
                 
-                nameText = entryGo.GetComponentInChildren<TextMeshProUGUI>();
+                // 明确按名字取标题文本，避免 GetComponentInChildren 遍历顺序的不确定性
+                var nameGo = FindRecursive(entryGo.transform, "NameText");
+                nameText = nameGo != null ? nameGo.GetComponent<TextMeshProUGUI>() : entryGo.GetComponentInChildren<TextMeshProUGUI>();
             }
             else
             {
@@ -825,8 +845,8 @@ namespace DailyQuests
             
             var colors = btn.colors;
             colors.normalColor = baseColor;
-            colors.highlightedColor = new Color(baseColor.r * 1.2f, baseColor.g * 1.2f, baseColor.b * 1.2f, 1f);
-            colors.pressedColor = new Color(baseColor.r * 0.8f, baseColor.g * 0.8f, baseColor.b * 0.8f, 1f);
+            colors.highlightedColor = new Color(Mathf.Clamp01(baseColor.r * 1.2f), Mathf.Clamp01(baseColor.g * 1.2f), Mathf.Clamp01(baseColor.b * 1.2f), 1f);
+            colors.pressedColor = new Color(Mathf.Clamp01(baseColor.r * 0.8f), Mathf.Clamp01(baseColor.g * 0.8f), Mathf.Clamp01(baseColor.b * 0.8f), 1f);
             colors.selectedColor = baseColor;
             colors.disabledColor = new Color(0.4f, 0.4f, 0.4f, 0.5f);
             btn.colors = colors;

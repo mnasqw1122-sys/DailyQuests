@@ -71,7 +71,62 @@ namespace DailyQuests
         {
             649,326,23,66,67,660,933,941,942,24,702,691,707,710,698,694
         };
-        
+
+        /// <summary>
+        /// 运行时学习到的敌人 nameKey（跨语言白名单缓存）。
+        /// 白名单里存的是中文显示名，而显示名会随游戏语言变化；
+        /// 只要某个敌人的显示名命中过白名单，就记住它的 nameKey（语言无关），
+        /// 之后即使切换语言也能继续识别该敌人。随存档持久化。
+        /// </summary>
+        public static readonly HashSet<string> LearnedEnemyNameKeys = new HashSet<string>();
+
+        /// <summary>学习到的 Boss 敌人 nameKey（跨语言）。</summary>
+        public static readonly HashSet<string> LearnedBossNameKeys = new HashSet<string>();
+
+        /// <summary>敌人是否在白名单内（优先按 nameKey 判断，跨语言稳定）。</summary>
+        public static bool IsEnemyAllowed(string displayName, string nameKey)
+        {
+            if (!string.IsNullOrEmpty(nameKey) && LearnedEnemyNameKeys.Contains(nameKey)) return true;
+            if (!string.IsNullOrEmpty(nameKey) && AllowedEnemyNames.Contains(nameKey)) return true;
+            if (!string.IsNullOrEmpty(displayName) && AllowedEnemyNames.Contains(displayName)) return true;
+            return false;
+        }
+
+        /// <summary>敌人是否为 Boss（优先按 nameKey 判断，跨语言稳定）。</summary>
+        public static bool IsEnemyBoss(string displayName, string nameKey)
+        {
+            if (!string.IsNullOrEmpty(nameKey) && LearnedBossNameKeys.Contains(nameKey)) return true;
+            if (!string.IsNullOrEmpty(nameKey) && BossEnemyNames.Contains(nameKey)) return true;
+            if (!string.IsNullOrEmpty(displayName) && BossEnemyNames.Contains(displayName)) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// 学习敌人的 nameKey：若其显示名（或 nameKey 本身）命中白名单，
+        /// 则把 nameKey 加入跨语言缓存；命中 Boss 表时同步学习 Boss 标记。
+        /// </summary>
+        public static void LearnEnemy(string displayName, string nameKey)
+        {
+            if (string.IsNullOrEmpty(nameKey)) return;
+            bool allowed = false;
+            bool boss = false;
+            if (!string.IsNullOrEmpty(displayName) && AllowedEnemyNames.Contains(displayName))
+            {
+                allowed = true;
+                boss = BossEnemyNames.Contains(displayName);
+            }
+            else if (AllowedEnemyNames.Contains(nameKey))
+            {
+                allowed = true;
+                boss = BossEnemyNames.Contains(nameKey);
+            }
+            if (allowed)
+            {
+                LearnedEnemyNameKeys.Add(nameKey);
+                if (boss) LearnedBossNameKeys.Add(nameKey);
+            }
+        }
+
         static DailyQuestConfig()
         {
              // 1. 自动合并Boss名称以确保它们被允许

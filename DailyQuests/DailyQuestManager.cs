@@ -45,6 +45,9 @@ namespace DailyQuests
                 public List<int> rewardItemCounts;
                 public bool rewardClaimed;
             }
+            public List<string> learnedEnemyNameKeys;
+            public List<string> learnedBossNameKeys;
+            public long lastSeenUtcTicks;
             public List<TaskSave> tasksFull;
         }
 
@@ -56,7 +59,11 @@ namespace DailyQuests
                 if (_instance == null)
                 {
                     var go = new GameObject("DailyQuestManager");
-                    go.transform.SetParent(LevelManager.Instance.transform, false);
+                    var levelManager = LevelManager.Instance;
+                    if (levelManager != null)
+                    {
+                        go.transform.SetParent(levelManager.transform, false);
+                    }
                     _instance = go.AddComponent<DailyQuestManager>();
                 }
                 return _instance;
@@ -70,12 +77,15 @@ namespace DailyQuests
         private Duckov.Quests.QuestGiver jeff = null!;
         private float updateTimer = 0f;
         private float refreshCooldown = 0f;
+        private DateTime lastSeenNow = DateTime.MinValue;
+        private long lastSeenUtcTicks = 0L;
 
         public void Initialize()
         {
             VerifyConfig();
-            currentDateKey = DateTime.UtcNow.ToString("yyyy-MM-dd");
+            currentDateKey = DateTime.Now.ToString("yyyy-MM-dd");
             Load();
+            CheckTimeRollback();
             BackfillRewardsForAllTasks();
             CheckDayChange();
         }
@@ -122,10 +132,22 @@ namespace DailyQuests
 
         private void CheckDayChange()
         {
-            string now = DateTime.UtcNow.ToString("yyyy-MM-dd");
-            if (now != currentDateKey)
+            DateTime now = DateTime.Now;
+            // 修复：会话内检测系统时间回溯，回溯时跳过本次刷新，
+            // 并通知游戏侧时间穿越检测
+            if (lastSeenNow != DateTime.MinValue && now < lastSeenNow)
             {
-                currentDateKey = now;
+                Debug.LogWarning("[DailyQuests] 检测到系统时间回溯，本次跳过每日刷新。");
+                GameManager.TimeTravelDetected();
+                lastSeenNow = now;
+                return;
+            }
+            lastSeenNow = now;
+
+            string today = now.ToString("yyyy-MM-dd");
+            if (today != currentDateKey)
+            {
+                currentDateKey = today;
             }
             
             if (tasks == null || tasks.Count == 0 || currentDateKey != lastSavedDate)
@@ -133,6 +155,21 @@ namespace DailyQuests
                 GenerateNewDaily();
                 Save();
             }
+        }
+
+        /// <summary>
+        /// 跨会话时间回溯检测：存档内记录的上次 UTC 时间晚于当前时间
+        /// 说明系统时间被回拨，通知游戏侧检测并记录日志。
+        /// </summary>
+        private void CheckTimeRollback()
+        {
+            long nowTicks = DateTime.UtcNow.Ticks;
+            if (lastSeenUtcTicks > 0 && nowTicks < lastSeenUtcTicks)
+            {
+                Debug.LogWarning("[DailyQuests] 检测到系统时间回溯（存档记录晚于当前时间）。");
+                GameManager.TimeTravelDetected();
+            }
+            lastSeenUtcTicks = nowTicks;
         }
 
         public void AttachJeff(QuestGiver j)
@@ -232,12 +269,16 @@ namespace DailyQuests
 
         public object GenerateSaveData()
         {
+            lastSeenUtcTicks = DateTime.UtcNow.Ticks;
             var data = new SaveData
             {
                 date = currentDateKey,
                 questIds = new List<int>(),
                 accepted = new List<int>(),
                 finished = new List<int>(),
+                learnedEnemyNameKeys = new List<string>(DailyQuestConfig.LearnedEnemyNameKeys),
+                learnedBossNameKeys = new List<string>(DailyQuestConfig.LearnedBossNameKeys),
+                lastSeenUtcTicks = lastSeenUtcTicks,
                 tasksFull = new List<SaveData.TaskSave>()
             };
             foreach (var t in tasks)
@@ -278,6 +319,10 @@ namespace DailyQuests
             if (data is SaveData d)
             {
                 lastSavedDate = d.date;
+                // 加载跨语言敌人 nameKey 缓存与时间标记
+                if (d.learnedEnemyNameKeys != null) DailyQuestConfig.LearnedEnemyNameKeys.UnionWith(d.learnedEnemyNameKeys);
+                if (d.learnedBossNameKeys != null) DailyQuestConfig.LearnedBossNameKeys.UnionWith(d.learnedBossNameKeys);
+                lastSeenUtcTicks = d.lastSeenUtcTicks;
                 if (d.tasksFull != null && d.tasksFull.Count > 0)
                 {
                     tasks = new List<DailyTask>();
@@ -321,6 +366,9 @@ namespace DailyQuests
                             };
                         }
 
+                        // 修复：加载后校验并自愈数据（迁移旧奖励字段/钳制进度/同步完成状态）
+                        t.ValidateState();
+
                         // 如果缺失则回退生成标题
                         if (string.IsNullOrEmpty(t.title))
                         {
@@ -346,6 +394,11 @@ namespace DailyQuests
                     {
                         var t = tasks.Find(x => x.id == f);
                         if (t != null) t.finished = true;
+                    }
+                    // 修复：旧版数据同样需要自愈校验
+                    foreach (var t in tasks)
+                    {
+                        t.ValidateState();
                     }
                 }
             }
@@ -392,7 +445,8 @@ namespace DailyQuests
 
         private void Save()
         {
-            Saves.SavesSystem.Save("DailyQuests", "Data", GenerateSaveData());
+            // 显式泛型：以 SaveData 类型序列化，避免 object 装箱导致的反序列化歧义
+            Saves.SavesSystem.Save<SaveData>("DailyQuests", "Data", (SaveData)GenerateSaveData());
         }
 
         private void Load()
@@ -402,8 +456,9 @@ namespace DailyQuests
                 var data = Saves.SavesSystem.Load<SaveData>("DailyQuests", "Data");
                 SetupSaveData(data);
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.LogError($"[DailyQuests] 加载每日任务存档失败，将使用全新任务状态：{ex}");
             }
         }
 
@@ -559,7 +614,11 @@ namespace DailyQuests
         {
             var tasks = new List<DailyTask>();
             var presets = GameplayDataSettings.CharacterRandomPresetData?.presets ?? new List<CharacterRandomPreset>();
-            presets = presets.Where(p => p != null && (DailyQuestConfig.AllowedEnemyNames.Contains(p.DisplayName) || DailyQuestConfig.AllowedEnemyNames.Contains(p.nameKey))).ToList();
+            presets = presets.Where(p => p != null && DailyQuestConfig.IsEnemyAllowed(p.DisplayName, p.nameKey)).ToList();
+            if (presets.Count == 0)
+            {
+                Debug.LogWarning("[DailyQuests] 未找到任何白名单敌人预设，击杀类任务无法生成（当前语言与白名单可能不匹配，或敌人数据未加载）。");
+            }
             int killBase = 300000;
             
             // 如果可能，随机化起始索引以避免ID冲突循环，
@@ -571,7 +630,8 @@ namespace DailyQuests
                 int id = killBase + idx++;
                 if (excludedIds.Contains(id)) continue;
 
-                bool isBoss = DailyQuestConfig.BossEnemyNames.Contains(preset.DisplayName) || DailyQuestConfig.BossEnemyNames.Contains(preset.nameKey);
+                DailyQuestConfig.LearnEnemy(preset.DisplayName, preset.nameKey);
+                bool isBoss = DailyQuestConfig.IsEnemyBoss(preset.DisplayName, preset.nameKey);
                 int amount;
                 if (isBoss)
                 {
@@ -606,36 +666,29 @@ namespace DailyQuests
         {
             var tasks = new List<DailyTask>();
             var presets = GameplayDataSettings.CharacterRandomPresetData?.presets ?? new List<CharacterRandomPreset>();
-            presets = presets.Where(p => p != null && (DailyQuestConfig.AllowedEnemyNames.Contains(p.DisplayName) || DailyQuestConfig.AllowedEnemyNames.Contains(p.nameKey))).ToList();
+            presets = presets.Where(p => p != null && DailyQuestConfig.IsEnemyAllowed(p.DisplayName, p.nameKey)).ToList();
             
-            var ownedItems = ItemUtilities.FindAllBelongsToPlayer(e => e != null);
-            var ownedWeaponIds = new List<int>();
-            foreach (var it in ownedItems)
-            {
-                try
-                {
-                    if (it != null && it.Tags != null && it.Tags.Contains("Weapon"))
-                    {
-                        if (!ownedWeaponIds.Contains(it.TypeID)) ownedWeaponIds.Add(it.TypeID);
-                    }
-                }
-                catch { }
-            }
+            // 武器池：玩家已拥有 + 默认解锁的武器（避免玩家武器少时全部挑战任务指向同一种武器）
+            var weaponIds = GetChallengeWeaponIds();
+            if (weaponIds.Count == 0) return tasks; // 无可用武器则不生成挑战任务
+
+            // 洗牌后顺序轮换分配，确保同一批任务尽量使用不同武器
+            Shuffle(weaponIds);
+            int weaponCursor = 0;
 
             int challengeBase = 500000;
             int cidx = UnityEngine.Random.Range(0, 500);
 
             foreach (var preset in presets)
             {
-                if (ownedWeaponIds.Count == 0) break;
-                
                 int id = challengeBase + cidx++;
                 if (excludedIds.Contains(id)) continue;
 
-                int pickWeaponIndex = UnityEngine.Random.Range(0, ownedWeaponIds.Count);
-                int weaponId = ownedWeaponIds[pickWeaponIndex];
+                int weaponId = weaponIds[weaponCursor % weaponIds.Count];
+                weaponCursor++;
                 var wmeta = ItemAssetsCollection.GetMetaData(weaponId);
-                bool isBoss = DailyQuestConfig.BossEnemyNames.Contains(preset.DisplayName) || DailyQuestConfig.BossEnemyNames.Contains(preset.nameKey);
+                DailyQuestConfig.LearnEnemy(preset.DisplayName, preset.nameKey);
+                bool isBoss = DailyQuestConfig.IsEnemyBoss(preset.DisplayName, preset.nameKey);
                 int amount;
                 DailyTaskDifficulty diff;
                 
@@ -670,6 +723,54 @@ namespace DailyQuests
                 tasks.Add(ct);
             }
             return tasks;
+        }
+
+        /// <summary>
+        /// 构建挑战任务可用武器池：玩家当前拥有的武器 + 游戏默认解锁的武器（按 Weapon Tag 从元数据过滤）
+        /// </summary>
+        private List<int> GetChallengeWeaponIds()
+        {
+            var weaponIds = new List<int>();
+
+            // 1. 玩家当前拥有的武器（背包/仓库/宠物）
+            var ownedItems = ItemUtilities.FindAllBelongsToPlayer(e => e != null);
+            foreach (var it in ownedItems)
+            {
+                try
+                {
+                    if (it != null && it.Tags != null && it.Tags.Contains("Weapon"))
+                    {
+                        if (!weaponIds.Contains(it.TypeID)) weaponIds.Add(it.TypeID);
+                    }
+                }
+                catch { }
+            }
+
+            // 2. 默认解锁的武器（仅读元数据 Tag，无需实例化物品）
+            var unlocked = GameplayDataSettings.Economy.UnlockedItemByDefault;
+            if (unlocked != null)
+            {
+                foreach (var id in unlocked)
+                {
+                    var meta = ItemAssetsCollection.GetMetaData(id);
+                    if (meta.id == 0 || meta.tags == null) continue;
+                    bool isWeapon = false;
+                    for (int i = 0; i < meta.tags.Length; i++)
+                    {
+                        if (meta.tags[i] != null && meta.tags[i].name == "Weapon")
+                        {
+                            isWeapon = true;
+                            break;
+                        }
+                    }
+                    if (isWeapon && !weaponIds.Contains(id))
+                    {
+                        weaponIds.Add(id);
+                    }
+                }
+            }
+
+            return weaponIds;
         }
 
         private List<DailyTask> BuildSpendTasks(HashSet<int> excludedIds)
@@ -762,15 +863,16 @@ namespace DailyQuests
             take(DailyTaskDifficulty.Hard, needHard);
             take(DailyTaskDifficulty.Epic, needEpic);
 
+            // 修复：剩余槽位按难度优先级（易→普→难→史诗）补位，
+            // 避免低等级玩家的每日任务被随机抽到的高难度任务占满
             int remaining = Mathf.Max(0, DailyCount - (keep.Count + pick.Count));
-            for (int i = 0; i < candidates.Count && remaining > 0; i++)
-            {
-                var c = candidates[i];
-                if (taken.Contains(c.id)) continue;
-                pick.Add(c);
-                taken.Add(c.id);
-                remaining--;
-            }
+            take(DailyTaskDifficulty.Easy, remaining);
+            remaining = Mathf.Max(0, DailyCount - (keep.Count + pick.Count));
+            take(DailyTaskDifficulty.Normal, remaining);
+            remaining = Mathf.Max(0, DailyCount - (keep.Count + pick.Count));
+            take(DailyTaskDifficulty.Hard, remaining);
+            remaining = Mathf.Max(0, DailyCount - (keep.Count + pick.Count));
+            take(DailyTaskDifficulty.Epic, remaining);
             return pick;
         }
 
@@ -946,18 +1048,46 @@ namespace DailyQuests
         {
             Item.onUseStatic += OnItemUsed;
             Health.OnDead += OnHealthDead;
+            Saves.SavesSystem.OnCollectSaveData += OnCollectSaveData;
+            Saves.SavesSystem.OnSetFile += OnSetFile;
         }
 
         private void OnDisable()
         {
             Item.onUseStatic -= OnItemUsed;
             Health.OnDead -= OnHealthDead;
+            Saves.SavesSystem.OnCollectSaveData -= OnCollectSaveData;
+            Saves.SavesSystem.OnSetFile -= OnSetFile;
+        }
+
+        /// <summary>
+        /// 游戏存档点（切场景/退出/撤离/死亡）统一落盘任务数据
+        /// </summary>
+        private void OnCollectSaveData()
+        {
+            Save();
+        }
+
+        /// <summary>
+        /// 切换存档槽位时从新槽位重新加载任务数据
+        /// </summary>
+        private void OnSetFile()
+        {
+            Load();
+            CheckTimeRollback();
+            BackfillRewardsForAllTasks();
+            CheckDayChange();
         }
 
         private void OnItemUsed(Item item, object user)
         {
             var ctrl = user as CharacterMainControl;
-            if (ctrl == null || !ctrl.IsMainCharacter()) return;
+            if (ctrl == null || !ctrl.IsMainCharacter) return;
+            // 修复：使用失败（耐久不足/当前无可执行行为）不计入进度。
+            // 与游戏 UI 的 IsUsable 判定保持一致（CharacterInputControl/ItemDisplay 等调用点）。
+            var usage = item != null ? item.GetComponent<UsageUtilities>() : null;
+            if (usage != null && !usage.IsUsable(item, user)) return;
+            if (item == null) return;
             foreach (var t in tasks)
             {
                 if (!t.accepted || t.finished) continue;
@@ -976,14 +1106,16 @@ namespace DailyQuests
         private void OnHealthDead(Health health, DamageInfo info)
         {
             if (health.team == Teams.player) return;
-            if (info.fromCharacter == null || !info.fromCharacter.IsMainCharacter()) return;
+            if (info.fromCharacter == null || !info.fromCharacter.IsMainCharacter) return;
             
             var character = health.TryGetCharacter();
             if (character == null || character.characterPreset == null) return;
             
             string enemyDisplayName = character.characterPreset.DisplayName;
             string enemyNameKey = character.characterPreset.nameKey;
-            bool isAllowed = DailyQuestConfig.AllowedEnemyNames.Contains(enemyDisplayName) || DailyQuestConfig.AllowedEnemyNames.Contains(enemyNameKey);
+            bool isAllowed = DailyQuestConfig.IsEnemyAllowed(enemyDisplayName, enemyNameKey);
+            // 顺带学习该敌人的 nameKey，保证跨语言稳定
+            DailyQuestConfig.LearnEnemy(enemyDisplayName, enemyNameKey);
 
             foreach (var t in tasks)
             {
@@ -1525,6 +1657,8 @@ namespace DailyQuests
             {
                 var t = tasks[i];
                 if (t == null) continue;
+                // 修复：补奖励前先自愈校验（进度钳制/完成状态同步/旧字段迁移）
+                t.ValidateState();
                 bool need = false;
                 if (t.rewardCashAmount <= 0 || t.rewardExpAmount <= 0) need = true;
                 if (t.rewardItems == null || t.rewardItems.Count == 0)
